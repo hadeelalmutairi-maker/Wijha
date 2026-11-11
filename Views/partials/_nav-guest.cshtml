@@ -1,0 +1,48 @@
+@using Wijha.Support.Auth
+@{
+    var customerUser = Auth.Guard(ViewContext.HttpContext, "customer").User<Wijha.Models.Customer>();
+    var compareServices = ViewContext.HttpContext.Session.GetString("compare_services");
+    var compareCount = string.IsNullOrEmpty(compareServices) ? 0 : System.Text.Json.JsonSerializer.Deserialize<List<int>>(compareServices)?.Count ?? 0;
+    var currentRoute = ViewContext.RouteData.Values["action"]?.ToString() ?? "";
+}
+<nav class="nav-w">
+    <a href="@Url.RouteUrl("home")" class="logo-row">
+        @await Html.PartialAsync("~/Views/components/_logo.cshtml", new { dark = true, size = 58 })
+        <div>
+            <div class="logo-txt">Wijha</div>
+            <div class="logo-sub">Event Services Marketplace</div>
+        </div>
+    </a>
+    <button class="nav-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#nav-menu-guest" aria-controls="nav-menu-guest" aria-expanded="false" aria-label="Menu">
+        <i class="bi bi-list"></i>
+    </button>
+    <div class="nav-collapse collapse" id="nav-menu-guest">
+        <div class="nav-links">
+            <a href="@Url.RouteUrl("home")">Home</a>
+            <a href="@Url.RouteUrl("providers.index")">Browse Services</a>
+            <a href="@Url.RouteUrl("home")#how-it-works">How It Works</a>
+            @if (customerUser == null)
+            {
+                <a href="@Url.RouteUrl("provider.register")">For Providers</a>
+            }
+            <a href="@Url.RouteUrl("compare.index")" style="display:inline-flex;align-items:center;gap:6px;">
+                <i class="bi bi-bar-chart-steps"></i> Compare
+                @if (compareCount > 0)
+                {
+                    <span class="badge-w b-gold" style="padding:1px 8px;font-size:11.5px;min-width:0;">@compareCount</span>
+                }
+            </a>
+        </div>
+        <div class="nav-actions">
+            @if (customerUser != null)
+            {
+                <a href="@Url.RouteUrl("customer.dashboard")" class="btn btn-w-ghost btn-sm-w">My dashboard</a>
+            }
+            else
+            {
+                <a href="@Url.RouteUrl("login")" class="btn btn-w-ghost btn-sm-w">Log in</a>
+                <a href="@Url.RouteUrl("register.type")" class="btn btn-w btn-sm-w">Create account</a>
+            }
+        </div>
+    </div>
+</nav>

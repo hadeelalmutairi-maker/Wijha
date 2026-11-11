@@ -1,0 +1,35 @@
+@{
+    Layout = "~/Views/layouts/_auth.cshtml";
+    ViewBag.Title = "Set a new password | Wijha";
+    string guard = ViewBag.Guard ?? "customer";
+    string email = ViewBag.Email ?? "";
+}
+
+@section quote {
+    <div class="auth-quote">It happens.<br>Let us get you<br>back in.</div>
+}
+
+@await Html.PartialAsync("~/Views/auth/password/_steps.cshtml", (object)new { current = 3, guard })
+
+<h1 class="h-sec mb-2">Set a new password</h1>
+<p class="muted mb-5" style="font-size:15.5px;">Choose something you have not used on Wijha before.</p>
+
+<p class="muted mb-4" style="font-size:14px;">Resetting the password for <strong style="color:var(--w-green-700);">@email</strong>.</p>
+
+<form method="post" action="@Url.RouteUrl("password.reset.submit", new { guard })">
+    @Html.AntiForgeryToken()
+
+    @await Html.PartialAsync("~/Views/auth/_password-field.cshtml", (object)new { id="password", name="password", label="New password", placeholder="At least 8 characters", autocomplete="new-password", minlength=8, pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z\\d]).{8,}$", title="At least 8 characters, with upper and lower case, a number and a symbol." })
+    @await Html.PartialAsync("~/Views/auth/_password-field.cshtml", (object)new { id="password_confirmation", name="password_confirmation", label="Confirm new password", placeholder="Type it again", autocomplete="new-password", minlength=8 })
+
+    <div style="background:var(--w-cream-200);border-radius:var(--r-md);padding:18px 20px;margin:4px 0 22px;">
+        <div class="lbl mb-2">Password must contain</div>
+        <div style="font-size:14px;line-height:2;color:var(--w-green-600);">
+            <div><i class="bi bi-check-circle-fill" style="color:var(--w-ok);"></i> At least 8 characters</div>
+            <div><i class="bi bi-check-circle-fill" style="color:var(--w-ok);"></i> Upper and lower case letters</div>
+            <div><i class="bi bi-check-circle-fill" style="color:var(--w-ok);"></i> A number and a symbol</div>
+        </div>
+    </div>
+
+    <button type="submit" class="btn btn-w btn-lg-w btn-block">Save new password</button>
+</form>

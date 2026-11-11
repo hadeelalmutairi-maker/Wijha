@@ -1,0 +1,127 @@
+@using Wijha.Models
+@using Wijha.Support
+@using Wijha.Helpers
+@{
+    bool isCustomer = ViewBag.IsCustomerAuth == true;
+    Layout = isCustomer ? "~/Views/layouts/_customer.cshtml" : "~/Views/layouts/_public.cshtml";
+    var provider = (ServiceProvider)ViewBag.Provider;
+    var reviews = (LengthAwarePaginator<Review>)ViewBag.Reviews;
+    decimal average = Convert.ToDecimal(ViewBag.Average ?? 0m);
+    int total = Convert.ToInt32(ViewBag.Total ?? 0);
+    var breakdown = (Dictionary<int, int>)ViewBag.Breakdown;
+    string sort = ViewBag.Sort as string ?? "newest";
+    int? ratingFilter = ViewBag.RatingFilter as int?;
+    string[] avatarColors = ["#D8BD9E", "#C8D1CC", "#E8DCCB", "#CFD9D2"];
+}
+
+@await Html.PartialAsync("~/Views/components/_photo-hero.cshtml", (object)new { image = "reviews", eyebrow = provider.BusinessName, title = "Customer Reviews", subtitle = $"{total} verified reviews from real event bookings." })
+
+<div class="crumbs">
+    <a href="@Url.RouteUrl("providers.index")">Providers</a>
+    <i class="bi bi-chevron-right" style="font-size:10px;"></i>
+    <a href="@Url.RouteUrl("providers.show", new { id = provider.ProviderId })">@provider.BusinessName</a>
+    <i class="bi bi-chevron-right" style="font-size:10px;"></i>
+    <span class="cur">Reviews</span>
+</div>
+
+<div class="page-pad">
+    <div class="row g-5">
+        <div class="col-lg-3">
+            <div class="card-w" style="padding:28px;position:sticky;top:92px;">
+                <div class="text-center mb-4">
+                    <div class="price" style="font-size:52px;line-height:1.1;">@average.ToString("F1")</div>
+                    <div style="color:var(--w-sand-400);font-size:20px;letter-spacing:2px;margin:6px 0;">
+                        @for (int i = 1; i <= 5; i++)
+                        {
+                            <i class="bi bi-star@(i <= Math.Round((double)average) ? "-fill" : "")"></i>
+                        }
+                    </div>
+                    <div class="muted" style="font-size:14px;">@total @(total == 1 ? "review" : "reviews")</div>
+                </div>
+                <div class="d-flex flex-column gap-2">
+                    @for (int star = 5; star >= 1; star--)
+                    {
+                        int cnt = breakdown.GetValueOrDefault(star);
+                        int barPct = total > 0 ? (int)(cnt * 100.0 / total) : 0;
+                        <a href="@Url.RouteUrl("providers.reviews", new { id = provider.ProviderId, rating = star })" class="d-flex align-items-center gap-2 text-decoration-none @(ratingFilter == star ? "rating-active" : "")">
+                            <span style="font-size:12px;white-space:nowrap;width:40px;color:var(--w-green-700);">@star <i class="bi bi-star-fill" style="color:var(--w-sand-400);"></i></span>
+                            <div style="flex:1;height:8px;background:var(--w-cream-200);border-radius:var(--r-pill);overflow:hidden;">
+                                <div style="width:@barPct%;height:8px;background:var(--w-sand-400);border-radius:var(--r-pill);"></div>
+                            </div>
+                            <span style="font-size:12px;width:28px;text-align:right;color:var(--w-muted);">@cnt</span>
+                        </a>
+                    }
+                </div>
+                <hr class="divider my-3">
+                @if (ratingFilter.HasValue)
+                {
+                    <a href="@Url.RouteUrl("providers.reviews", new { id = provider.ProviderId })" class="btn btn-w-ghost btn-sm-w btn-block">Show all ratings</a>
+                }
+                <a href="@Url.RouteUrl("providers.show", new { id = provider.ProviderId })" class="btn btn-w btn-sm-w btn-block mt-2">View profile</a>
+            </div>
+        </div>
+
+        <div class="col-lg-9">
+            <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+                <h2 class="h-pg mb-0">@(ratingFilter.HasValue ? $"{ratingFilter}-star reviews" : "All reviews")</h2>
+                <div class="d-flex align-items-center gap-2">
+                    <label class="lbl" for="sort-sel">Sort</label>
+                    <form method="GET" action="@Url.RouteUrl("providers.reviews", new { id = provider.ProviderId })">
+                        @if (ratingFilter.HasValue)
+                        {
+                            <input type="hidden" name="rating" value="@ratingFilter">
+                        }
+                        <select name="sort" id="sort-sel" class="inp inp-sm" onchange="this.form.submit()">
+                            <option value="newest" @(sort == "newest" ? "selected" : "")>Newest first</option>
+                            <option value="highest" @(sort == "highest" ? "selected" : "")>Highest rating</option>
+                            <option value="lowest" @(sort == "lowest" ? "selected" : "")>Lowest rating</option>
+                        </select>
+                    </form>
+                </div>
+            </div>
+
+            @if (!reviews.Items.Any())
+            {
+                <div class="card-w text-center" style="padding:70px 40px;">
+                    @await Html.PartialAsync("~/Views/components/_empty-search.cshtml")
+                    <h2 class="h-sec mt-4">No reviews yet</h2>
+                    <p class="lead-w mt-3" style="max-width:380px;margin:0 auto;">Reviews appear after customers complete their bookings. Check back after the first event.</p>
+                </div>
+            }
+            else
+            {
+                <div class="d-flex flex-column gap-4">
+                    @{int revIdx = 0;}
+                    @foreach (var review in reviews.Items)
+                    {
+                        string initials = $"{review.Booking?.Customer?.FirstName?[0]}{review.Booking?.Customer?.LastName?[0]}".ToUpper();
+                        string avatarBg = avatarColors[revIdx % avatarColors.Length];
+                        <div class="card-w" style="padding:24px;">
+                            <div class="d-flex justify-content-between align-items-start gap-3">
+                                <div class="d-flex gap-3 align-items-center">
+                                    <div style="width:44px;height:44px;border-radius:50%;background:@avatarBg;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;color:var(--w-green-900);flex:none;">@initials</div>
+                                    <div>
+                                        <div style="font-weight:600;font-size:15px;color:var(--w-green-900);">@review.Booking?.Customer?.FirstName @review.Booking?.Customer?.LastName</div>
+                                        <div class="muted" style="font-size:13px;">@review.ReviewDate.ToString("dd MMM yyyy") &middot; @review.Booking?.ProviderService?.OfferingTitle</div>
+                                    </div>
+                                </div>
+                                <div style="color:var(--w-sand-400);font-size:16px;letter-spacing:1px;flex:none;">
+                                    @for (int i = 1; i <= 5; i++)
+                                    {
+                                        <i class="bi bi-star@(i <= review.Rating ? "-fill" : "")"></i>
+                                    }
+                                </div>
+                            </div>
+                            @if (!string.IsNullOrEmpty(review.ReviewText))
+                            {
+                                <p class="mt-3 mb-0" style="font-size:15px;line-height:1.65;color:var(--w-green-700);">@review.ReviewText</p>
+                            }
+                        </div>
+                        revIdx++;
+                    }
+                </div>
+                <div class="mt-4">@Html.Raw(reviews.Links())</div>
+            }
+        </div>
+    </div>
+</div>

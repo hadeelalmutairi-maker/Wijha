@@ -1,0 +1,198 @@
+@using Wijha.Models
+@using Wijha.Support
+@{
+    Layout = "~/Views/layouts/_admin.cshtml";
+    ViewBag.Title = "Earnings report | Admin | Wijha";
+    var totals = (Dictionary<string, object>)ViewBag.Totals;
+    var prevTotals = ViewBag.PrevTotals as Dictionary<string, object>;
+    var series = (Dictionary<string, object>)ViewBag.Series;
+    var byMethod = (IEnumerable<dynamic>)ViewBag.ByMethod;
+    var services = (IEnumerable<Service>)ViewBag.Services;
+    var cities = (IEnumerable<string>)ViewBag.Cities;
+    var methods = (IEnumerable<string>)ViewBag.Methods;
+    var range = ViewBag.Range as DateRange;
+    var filters = (Dictionary<string, object>)ViewBag.Filters;
+    var awaiting = (Dictionary<string, object>)ViewBag.Awaiting;
+    var methodChart = byMethod.Select(m => new { name = (string)m.name, net = Math.Round((decimal)m.net, 2) }).ToList();
+
+    decimal net = Convert.ToDecimal(totals["net"]);
+    decimal gross = Convert.ToDecimal(totals["gross"]);
+    int count = Convert.ToInt32(totals["count"]);
+    decimal refunds = Convert.ToDecimal(totals["refunds"]);
+    int refundCount = Convert.ToInt32(totals["refund_count"]);
+    int failedCount = Convert.ToInt32(totals["failed_count"]);
+    decimal average = Convert.ToDecimal(totals["average"]);
+
+    int? netDelta = prevTotals != null && Convert.ToDecimal(prevTotals["net"]) != 0
+        ? (int?)Math.Round((net - Convert.ToDecimal(prevTotals["net"])) / Convert.ToDecimal(prevTotals["net"]) * 100)
+        : null;
+    int? countDelta = prevTotals != null && Convert.ToInt32(prevTotals["count"]) != 0
+        ? (int?)Math.Round((double)(count - Convert.ToInt32(prevTotals["count"])) / Convert.ToInt32(prevTotals["count"]) * 100)
+        : null;
+    bool hasAnyFilters = range?.Key != "all" || filters.Any(f => f.Value != null);
+}
+<div class="page-pad">
+    @await Html.PartialAsync("~/Views/partials/_flash.cshtml")
+
+    @await Html.PartialAsync("~/Views/components/_admin-head.cshtml", (object)new {
+        eyebrow = "Reports",
+        title = "Earnings report",
+        subtitle = $"Money collected through Wijha checkout · {range?.Describe()}",
+        actions = new[] {
+            new { href = Url.RouteUrl("admin.reports.earnings.export"), cls = "btn-w-ghost", icon = "download", label = "Export CSV" },
+            new { href = "#", cls = "btn-w-ghost", icon = "printer", label = "Print", onclick = "window.print()" },
+            new { href = Url.RouteUrl("admin.reports.performance"), cls = "btn-w", icon = "graph-up-arrow", label = "Provider performance" }
+        }
+    })
+
+    <form method="GET" action="@Url.RouteUrl("admin.reports.earnings")" class="a-filters">
+        <div class="date-filter">
+            @{ ViewContext.ViewData["range"] = range; ViewContext.ViewData["label"] = "Payment date"; ViewContext.ViewData["id"] = "earn"; }
+            @await Html.PartialAsync("~/Views/admin/_date-range.cshtml")
+            <div class="date-filter-field">
+                <label class="lbl d-block mb-2" for="service_id">Service type</label>
+                <select name="service_id" id="service_id" class="inp" onchange="this.form.submit()">
+                    <option value="">All services</option>
+                    @foreach (var s in services)
+                    {
+                        <option value="@s.ServiceId" @(filters.GetValueOrDefault("service_id")?.Equals(s.ServiceId) == true ? "selected" : "")>@s.ServiceName</option>
+                    }
+                </select>
+            </div>
+            <div class="date-filter-field">
+                <label class="lbl d-block mb-2" for="city">Provider city</label>
+                <select name="city" id="city" class="inp" onchange="this.form.submit()">
+                    <option value="">All cities</option>
+                    @foreach (var c in cities)
+                    {
+                        <option value="@c" @(filters.GetValueOrDefault("city") as string == c ? "selected" : "")>@c</option>
+                    }
+                </select>
+            </div>
+            <div class="date-filter-field">
+                <label class="lbl d-block mb-2" for="method">Payment method</label>
+                <select name="method" id="method" class="inp" onchange="this.form.submit()">
+                    <option value="">All methods</option>
+                    @foreach (var m in methods)
+                    {
+                        <option value="@m" @(filters.GetValueOrDefault("method") as string == m ? "selected" : "")>@m</option>
+                    }
+                </select>
+            </div>
+            <button type="submit" class="btn btn-w btn-sm-w date-filter-btn">Apply</button>
+            @if (hasAnyFilters)
+            {
+                <a href="@Url.RouteUrl("admin.reports.earnings")" class="btn btn-w-ghost btn-sm-w date-filter-btn">Reset</a>
+            }
+        </div>
+    </form>
+
+    <div class="row g-3 mb-3">
+        <div class="col-sm-6 col-xl-3"><div class="a-kpi">
+            <span class="a-kpi-ico"><i class="bi bi-cash-stack"></i></span>
+            <div><div class="lbl">Net earnings</div><div class="a-kpi-n">SAR @net.ToString("N0")</div>
+                <div class="a-kpi-sub">
+                    @if (netDelta != null) {
+                        <span class="delta @(netDelta >= 0 ? "up" : "down")"><i class="bi bi-arrow-@(netDelta >= 0 ? "up" : "down")-short"></i>@Math.Abs(netDelta.Value)%</span> @:vs previous period
+                    } else { @:Collected minus refunds }
+                </div></div>
+        </div></div>
+        <div class="col-sm-6 col-xl-3"><div class="a-kpi">
+            <span class="a-kpi-ico gold"><i class="bi bi-receipt"></i></span>
+            <div><div class="lbl">Gross collected</div><div class="a-kpi-n">SAR @gross.ToString("N0")</div>
+                <div class="a-kpi-sub">@count @(count == 1 ? "payment" : "payments")
+                    @if (countDelta != null) { @:&middot; <span class="delta @(countDelta >= 0 ? "up" : "down")">@(countDelta >= 0 ? "+" : "−")@Math.Abs(countDelta.Value)%</span> }
+                </div></div>
+        </div></div>
+        <div class="col-sm-6 col-xl-3"><div class="a-kpi">
+            <span class="a-kpi-ico red"><i class="bi bi-arrow-counterclockwise"></i></span>
+            <div><div class="lbl">Refunded</div><div class="a-kpi-n">SAR @refunds.ToString("N0")</div>
+                <div class="a-kpi-sub">@refundCount @(refundCount == 1 ? "refund" : "refunds") &middot; @failedCount failed @(failedCount == 1 ? "payment" : "payments")</div></div>
+        </div></div>
+        <div class="col-sm-6 col-xl-3"><div class="a-kpi">
+            <span class="a-kpi-ico grey"><i class="bi bi-calculator"></i></span>
+            <div><div class="lbl">Average payment</div><div class="a-kpi-n">SAR @average.ToString("N0")</div>
+                <div class="a-kpi-sub">Per paid booking</div></div>
+        </div></div>
+    </div>
+
+    @{ int awaitingCount = Convert.ToInt32(awaiting["count"]); decimal awaitingValue = Convert.ToDecimal(awaiting["value"]); }
+    @if (awaitingCount > 0)
+    {
+        <div class="alert-w a-info mb-3">
+            <i class="bi bi-hourglass-split" style="font-size:18px;"></i>
+            <div><strong>SAR @awaitingValue.ToString("N0") is still waiting to be paid</strong> on @awaitingCount accepted @(awaitingCount == 1 ? "booking" : "bookings") (right now, any date).
+                <a href="@Url.RouteUrl("admin.bookings.index", new { status = "Accepted" })" style="color:inherit;font-weight:700;">See bookings</a></div>
+        </div>
+    }
+
+    <div class="row g-3 mb-3">
+        <div class="col-lg-8"><div class="a-card">
+            <div class="a-card-head"><div class="lbl">Earnings @((bool)series["daily"] ? "by day" : "by month")</div>
+                <div class="a-note"><span class="legend-dot" style="background:#3A5240;"></span> Net &nbsp; <span class="legend-dot" style="background:#C9A24B;"></span> Gross</div></div>
+            @{ var grossArr = (IEnumerable<decimal>)series["gross"]; }
+            @if (grossArr.Sum() > 0)
+            {
+                <div style="height:280px;"><canvas id="chart-earnings"></canvas></div>
+            }
+            else
+            {
+                <div class="a-empty">No payments in this period.</div>
+            }
+        </div></div>
+        <div class="col-lg-4"><div class="a-card">
+            <div class="a-card-head"><div class="lbl">By payment method</div></div>
+            @if (methodChart.Any())
+            {
+                <div style="height:190px;"><canvas id="chart-methods"></canvas></div>
+                <div class="mt-3">
+                    @foreach (var m in byMethod)
+                    {
+                        <div class="sum-row" style="padding:6px 0;"><span class="k">@m.name <span class="a-note">(@m.n)</span></span><span class="v">SAR @(((decimal)m.net).ToString("N0"))</span></div>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="a-empty">No payments in this period.</div>
+            }
+        </div></div>
+    </div>
+
+    <p class="a-note mt-1 mb-0"><i class="bi bi-info-circle me-1"></i>Net earnings are what customers paid through Wijha minus refunds. Wijha does not store a commission rate (the platform fee is SAR 0), so this is not platform profit.</p>
+</div>
+
+@section scripts {
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+(function () {
+    const series = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(series));
+    const el = document.getElementById('chart-earnings');
+    if (el) {
+        new Chart(el, {
+            data: {
+                labels: series.labels,
+                datasets: [
+                    { type: 'bar', label: 'Net', data: series.net, backgroundColor: '#3A5240', borderRadius: 6, maxBarThickness: 34, order: 2 },
+                    { type: 'line', label: 'Gross', data: series.gross, borderColor: '#C9A24B', backgroundColor: '#C9A24B', tension: .35, pointRadius: 2, order: 1 },
+                ],
+            },
+            options: {
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (c) { return c.dataset.label + ': SAR ' + Number(c.raw).toLocaleString(); } } } },
+                scales: { y: { beginAtZero: true, ticks: { callback: function (v) { return 'SAR ' + Number(v).toLocaleString(); } } }, x: { grid: { display: false } } },
+            },
+        });
+    }
+    const methods = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(methodChart));
+    const mEl = document.getElementById('chart-methods');
+    if (mEl) {
+        new Chart(mEl, {
+            type: 'doughnut',
+            data: { labels: methods.map(m => m.name), datasets: [{ data: methods.map(m => m.net), backgroundColor: ['#3A5240', '#C9A24B', '#8FA294', '#D8BD9E', '#5E7365', '#E7D5BE'], borderWidth: 0 }] },
+            options: { maintainAspectRatio: false, cutout: '64%', plugins: { legend: { display: false } } },
+        });
+    }
+})();
+</script>
+}

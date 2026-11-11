@@ -1,0 +1,47 @@
+<footer class="site-foot">
+    <div class="row g-4 g-lg-5">
+        <div class="col-lg-4">
+            <div class="logo-row mb-3">
+                @await Html.PartialAsync("~/Views/components/_logo.cshtml", new { dark = true, size = 40 })
+                <div class="logo-txt" style="color:#F2F5F2;">Wijha</div>
+            </div>
+            <p style="font-size:14.5px;line-height:1.7;max-width:300px;">The event services marketplace for Saudi Arabia. Discover, compare and book in one place.</p>
+        </div>
+        <div class="col-6 col-md-3 col-lg-2"><div class="lbl" style="color:var(--w-sand-300);">Customers</div>
+            <div class="site-foot-links">
+                <a href="@Url.RouteUrl("providers.index")">Browse services</a>
+                <a href="@Url.RouteUrl("home")#how-it-works">How it works</a>
+                <a href="@Url.RouteUrl("customer.myevents.index")">My events</a>
+                <a href="mailto:hello@wijha.sa">Support</a>
+            </div>
+        </div>
+        <div class="col-6 col-md-3 col-lg-2"><div class="lbl" style="color:var(--w-sand-300);">Providers</div>
+            <div class="site-foot-links">
+                <a href="@Url.RouteUrl("provider.register")">Join Wijha</a>
+                <span>Subscription</span>
+                <span>Provider guide</span>
+                <a href="@Url.RouteUrl("provider.dashboard")">Dashboard</a>
+            </div>
+        </div>
+        <div class="col-6 col-md-3 col-lg-2"><div class="lbl" style="color:var(--w-sand-300);">Company</div>
+            <div class="site-foot-links">
+                <span>About</span>
+                <a href="mailto:hello@wijha.sa">Contact</a>
+                <span>Privacy policy</span>
+                <span>Terms of use</span>
+            </div>
+        </div>
+        <div class="col-6 col-md-3 col-lg-2"><div class="lbl" style="color:var(--w-sand-300);">Contact</div>
+            <div class="site-foot-links">
+                <a href="mailto:hello@wijha.sa">hello@wijha.sa</a>
+                <span>+966 13 000 0000</span>
+                <span>Jubail, Saudi Arabia</span>
+            </div>
+        </div>
+    </div>
+    <hr style="border-color:#2C3C33;margin:36px 0 20px;">
+    <div class="d-flex justify-content-between flex-wrap gap-2" style="font-size:13.5px;">
+        <span>&copy; @DateTime.Now.Year Wijha. All rights reserved.</span>
+        <span>Made in Saudi Arabia</span>
+    </div>
+</footer>

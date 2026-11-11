@@ -1,0 +1,72 @@
+@{
+    Layout = "~/Views/layouts/_auth.cshtml";
+    ViewBag.Title = "Log in | Wijha";
+}
+@using Wijha.Support.Http
+@{
+    var errors = new ErrorBag(ViewContext);
+    var choices = Flash.Get<List<string>>(ViewContext.HttpContext, "login_choices");
+    var labels = new Dictionary<string, string> { ["customer"] = "Customer account", ["provider"] = "Provider account", ["admin"] = "Admin account" };
+}
+
+@section quote {
+    <div class="auth-quote">"I booked the photographer,<br>the cake and the flowers<br>in one evening."</div>
+}
+
+<div class="lbl">Welcome back</div>
+<h1 class="h-sec mt-2 mb-2">Log in to Wijha</h1>
+<p class="muted mb-4" style="font-size:15.5px;">One login for everyone. Use the email you registered with and we will open the right account.</p>
+
+<div class="login-roles mb-4" aria-hidden="true">
+    <span><i class="bi bi-calendar-heart"></i> Customers</span>
+    <span><i class="bi bi-shop"></i> Service providers</span>
+    <span><i class="bi bi-shield-check"></i> Wijha team</span>
+</div>
+
+<form method="post" action="@Url.RouteUrl("login")">
+    @Html.AntiForgeryToken()
+    @if (choices != null && choices.Any())
+    {
+        <div class="alert-w a-info mb-4">
+            <i class="bi bi-person-badge" style="font-size:18px;"></i>
+            <div><strong>This email has more than one account.</strong><br>Choose which one to open and enter your password again.</div>
+        </div>
+        <div class="d-flex flex-column gap-2 mb-4">
+            @for (int i = 0; i < choices.Count; i++)
+            {
+                var guard = choices[i];
+                <label class="opt mb-0" style="cursor:pointer;padding:14px 16px;">
+                    <input type="radio" name="as" value="@guard" @(i == 0 ? "checked" : "") style="margin-top:4px;accent-color:var(--w-green-700);">
+                    <span style="font-weight:700;font-size:15px;">@(labels.ContainsKey(guard) ? labels[guard] : guard)</span>
+                </label>
+            }
+        </div>
+    }
+
+    <div class="field">
+        <label for="email">Email address</label>
+        <div class="inp-icon"><i class="bi bi-envelope"></i>
+            <input type="email" name="email" id="email" class="inp @(errors.Has("email") ? "inp-err" : "")"
+                   value="@Flash.Old(ViewContext.HttpContext, "email")" placeholder="you@example.com" required autocomplete="email" @(choices == null ? "autofocus" : "")></div>
+        @if (errors.Has("email")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("email")</div> }
+    </div>
+
+    <div class="field">
+        <label for="password">Password</label>
+        <div class="inp-icon">
+            <i class="bi bi-lock"></i>
+            <input type="password" name="password" id="password" class="inp @(Flash.Get<string>(ViewContext.HttpContext, "login_error") != null ? "inp-err" : "")"
+                   placeholder="Enter your password" autocomplete="current-password">
+            <button type="button" class="inp-eye" data-pw-toggle="password" aria-label="Show password"><i class="bi bi-eye"></i></button>
+        </div>
+    </div>
+
+    <div class="field-row">
+        <label class="check-row"><input type="checkbox" name="remember" value="1"> Remember me</label>
+        <a href="@Url.RouteUrl("password.forgot")" style="font-size:14px;color:var(--w-green-700);">Forgot password?</a>
+    </div>
+
+    <button type="submit" class="btn btn-w btn-lg-w btn-block">Log in</button>
+
+    <p class="text-center muted mt-4 mb-0" style="font-size:15px;">New to Wijha? <a href="@Url.RouteUrl("register.type")" style="color:var(--w-green-700);font-weight:700;">Create an account</a></p>
+</form>

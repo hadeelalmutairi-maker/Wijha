@@ -1,0 +1,12 @@
+@model dynamic
+@{
+    bool dark = Model?.dark ?? false;
+    int size = Model?.size ?? 85;
+    string stroke = dark ? "#F3EDE4" : "#24392D";
+}
+<svg width="@size" height="@size" viewBox="0 0 40 40" fill="none">
+    <rect x="5.5" y="9" width="29" height="25" rx="7" stroke="@stroke" stroke-width="2.6"/>
+    <path d="M13 6.5v5M27 6.5v5" stroke="@stroke" stroke-width="2.6" stroke-linecap="round"/>
+    <path d="M12 27c2.6-4.4 4.3-6.6 5.8-6.6 1.6 0 2 3.3 3.4 3.3 1.5 0 3-3.4 5.6-7.1" stroke="@stroke" stroke-width="2.4" stroke-linecap="round"/>
+    <path d="M16.4 14.2l.9 2.3 2.3.9-2.3.9-.9 2.3-.9-2.3-2.3-.9 2.3-.9.9-2.3z" fill="#C9A15A"/>
+</svg>

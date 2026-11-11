@@ -1,0 +1,212 @@
+@using Wijha.Models
+@using Wijha.Helpers
+@{
+    Layout = "~/Views/layouts/_public.cshtml";
+    ViewBag.Title = "Wijha | Every part of your event, found in one place";
+    var stats = (Dictionary<string, object>)ViewBag.Stats;
+    var categories = (IEnumerable<Service>)ViewBag.Categories;
+    var cities = (IEnumerable<string>)ViewBag.Cities;
+    var tiles = (IEnumerable<dynamic>)ViewBag.Tiles;
+    var featuredProviders = (IEnumerable<ServiceProvider>)ViewBag.FeaturedProviders;
+    int providerCount = Convert.ToInt32(stats["providers"]);
+    int eventCount = Convert.ToInt32(stats["events"]);
+    decimal? rating = stats.ContainsKey("rating") && stats["rating"] != null ? Convert.ToDecimal(stats["rating"]) : (decimal?)null;
+}
+
+<section class="home-photo-hero">
+<div class="home-hero-copy">
+    @await Html.PartialAsync("~/Views/partials/_flash.cshtml")
+    <span class="badge-w b-gold"><i class="bi bi-stars"></i> @providerCount verified @(providerCount == 1 ? "provider" : "providers") across Saudi Arabia</span>
+    <h1 class="display-hero mt-4" style="max-width:900px;margin:0 auto;">Every part of your event,
+        found in <span style="color:var(--w-sand-400);font-style:italic;">one place</span>.</h1>
+    <p class="lead-w mt-4" style="max-width:620px;margin:0 auto;">Photography, decoration, cakes and flowers. Compare real prices, check the dates that are actually free, and book without chasing anyone on WhatsApp.</p>
+
+    <form action="@Url.RouteUrl("providers.index")" method="GET" class="card-w home-search mt-5">
+        <div class="home-search-row">
+            <div class="home-search-field home-search-field-wide">
+                <label class="lbl mb-1 d-block" for="hs-service">Service</label>
+                <select name="service_id" id="hs-service" class="home-search-input">
+                    <option value="">Any service</option>
+                    @foreach (var category in categories)
+                    {
+                        <option value="@category.ServiceId">@category.ServiceName</option>
+                    }
+                </select>
+            </div>
+            <div class="home-search-sep"></div>
+            <div class="home-search-field">
+                <label class="lbl mb-1 d-block" for="hs-city">City</label>
+                <select name="city" id="hs-city" class="home-search-input">
+                    <option value="">Any city</option>
+                    @foreach (var c in cities)
+                    {
+                        <option value="@c">@c</option>
+                    }
+                </select>
+            </div>
+            <div class="home-search-sep"></div>
+            <div class="home-search-field">
+                <label class="lbl mb-1 d-block" for="hs-date">Event date</label>
+                <input type="date" name="event_date" id="hs-date" class="home-search-input" min="@DateTime.Today.ToString("yyyy-MM-dd")">
+            </div>
+            <button type="submit" class="btn btn-w home-search-btn"><i class="bi bi-search me-2"></i>Search</button>
+        </div>
+    </form>
+
+    <div class="home-stats mt-5 pt-2">
+        <div><div class="price" style="font-size:30px;">@providerCount.ToString("N0")</div><div class="muted" style="font-size:14px;">Verified providers</div></div>
+        <div class="home-stats-sep"></div>
+        <div><div class="price" style="font-size:30px;">@eventCount.ToString("N0")</div><div class="muted" style="font-size:14px;">Events planned</div></div>
+        <div class="home-stats-sep"></div>
+        <div><div class="price" style="font-size:30px;">@(rating.HasValue ? rating.Value.ToString("F1") : "New")</div><div class="muted" style="font-size:14px;">Average rating</div></div>
+    </div>
+</div>
+</section>
+
+<svg class="home-wave" width="1440" height="70" viewBox="0 0 1440 70" preserveAspectRatio="none" style="display:block;width:100%;height:70px;" aria-hidden="true">
+    <path d="M0 42C210 2 398 2 620 28s412 36 620-14c110-26 200-18 200-18V70H0V42z" fill="#F4EDE6"/>
+</svg>
+
+<div class="band-cream home-band">
+    <div class="text-center mb-5">
+        <div class="lbl">Browse by service</div>
+        <h2 class="h-sec mt-2">@(tiles.Count() == 4 ? "Four categories" : "Every category"), every provider verified</h2>
+    </div>
+    <div class="row g-4">
+        @foreach (var tile in tiles)
+        {
+            int tileProviderCount = (int)tile.provider_count;
+            decimal? fromPrice = tile.from_price != null ? (decimal?)Convert.ToDecimal(tile.from_price) : null;
+            <div class="col-sm-6 col-lg-3"><a href="@Url.RouteUrl("providers.index", new { service_id = tile.service_id })" class="tile-cat tile-cat-c text-decoration-none">
+                <div class="tile-icon">@await Html.PartialAsync("~/Views/components/_service-icon.cshtml", (object)new { name = (string)tile.service_name })</div>
+                <h3 class="h-card mt-4 mb-2">@tile.service_name</h3>
+                <div class="tile-desc">
+                    <p class="muted mb-3" style="font-size:14.5px;">@tileProviderCount @(tileProviderCount == 1 ? "provider" : "providers")@(fromPrice.HasValue ? " · from SAR " + fromPrice.Value.ToString("N0") : "")</p>
+                </div>
+                <span class="chip btn-sm-w">Explore <i class="bi bi-arrow-right"></i></span>
+            </a></div>
+        }
+    </div>
+</div>
+
+<div class="home-section">
+    <div class="d-flex justify-content-between align-items-end mb-5 flex-wrap gap-3">
+        <div><div class="lbl">Highest rated this month</div><h2 class="h-sec mt-2 mb-0">Providers customers keep coming back to</h2></div>
+        <a href="@Url.RouteUrl("providers.index")" class="btn btn-w-ghost btn-sm-w">View all providers <i class="bi bi-arrow-right ms-1"></i></a>
+    </div>
+    <div class="row g-4">
+        @{
+            int provIdx = 0;
+            bool anyFeatured = false;
+        }
+        @foreach (var provider in featuredProviders)
+        {
+            anyFeatured = true;
+            var cheapest = provider.ProviderServices?.FirstOrDefault();
+            string? logoUrl = WijhaHelpers.ImageUrl(provider.LogoUrl);
+            <div class="col-md-6 col-lg-4"><a href="@Url.RouteUrl("providers.show", new { id = provider.ProviderId })" class="card-w card-sig card-fixed text-decoration-none" style="overflow:hidden;height:420px;">
+                <div style="position:relative;flex:none;">
+                    @if (logoUrl != null)
+                    {
+                        <div class="ph" style="height:188px;overflow:hidden;"><img src="@logoUrl" alt="@provider.BusinessName" style="width:100%;height:100%;object-fit:cover;"></div>
+                    }
+                    else
+                    {
+                        @await Html.PartialAsync("~/Views/components/_decor-photo.cshtml", (object)new { seed = provIdx, height = "188px" })
+                    }
+                    <span class="badge-w b-gold" style="position:absolute;top:16px;left:16px;"><i class="bi bi-patch-check-fill"></i> Verified</span>
+                </div>
+                <div class="card-fixed-body" style="padding:24px 24px 0;">
+                    <div class="d-flex justify-content-between align-items-start gap-2">
+                        <div style="min-width:0;">
+                            <h3 class="h-card mb-1">@provider.BusinessName</h3>
+                            <div class="muted" style="font-size:14px;">@if (cheapest?.Service != null) { @cheapest.Service.ServiceName @:&middot; } @provider.City</div>
+                        </div>
+                        <span class="rate flex-shrink-0"><i class="bi bi-star-fill"></i>@provider.AverageRating.ToString("F1")</span>
+                    </div>
+                    <p class="muted mt-3 mb-0 clamp-2" style="font-size:14.5px;">@provider.BusinessDescription</p>
+                </div>
+                <div class="card-fixed-foot" style="padding:0 24px 24px;">
+                    <hr class="divider my-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        @if (cheapest != null)
+                        {
+                            <div><span class="muted" style="font-size:13px;">from </span><span class="price" style="font-size:22px;">SAR @cheapest.Price.ToString("N0")</span><span class="muted" style="font-size:13px;"> @WijhaHelpers.PriceUnit(cheapest.PriceUnit)</span></div>
+                        }
+                        else
+                        {
+                            <span class="muted" style="font-size:13px;">No services listed yet</span>
+                        }
+                        <span class="muted" style="font-size:13px;">@provider.TotalReviews @(provider.TotalReviews == 1 ? "review" : "reviews")</span>
+                    </div>
+                </div>
+            </a></div>
+            provIdx++;
+        }
+        @if (!anyFeatured)
+        {
+            <p class="muted">No approved providers yet.</p>
+        }
+    </div>
+</div>
+
+<div class="band-cream home-section" id="how-it-works">
+    <div class="text-center mb-5"><div class="lbl">How Wijha works</div><h2 class="h-sec mt-2">From searching to booked in three steps</h2></div>
+    <div class="row g-4">
+        @{
+            var steps = new[] {
+                new { Title = "Search and filter", Desc = "Filter by category, city, budget and date. Only providers who match what you need are shown.", Icon = "bi-search" },
+                new { Title = "Compare and check the date", Desc = "Put providers side by side on price, rating, portfolio and availability, with no messaging required to find out.", Icon = "bi-bar-chart-steps" },
+                new { Title = "Book and pay securely", Desc = "Submit the booking, pay through the platform and get an invoice. You can still edit the details for 24 hours.", Icon = "bi-shield-check" },
+            };
+        }
+        @for (int i = 0; i < steps.Length; i++)
+        {
+            <div class="col-md-4"><div class="card-w h-100" style="padding:32px;">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="step-n">@(i + 1)</div>
+                    <i class="bi @steps[i].Icon" style="font-size:22px;color:var(--w-sand-400);"></i>
+                </div>
+                <h3 class="h-card mt-4">@steps[i].Title</h3>
+                <p class="muted mt-2 mb-0" style="font-size:15px;line-height:1.65;">@steps[i].Desc</p>
+            </div></div>
+        }
+    </div>
+    <div class="text-center mt-5">
+        <a href="@Url.RouteUrl("providers.index")" class="btn btn-w">Start browsing <i class="bi bi-arrow-right ms-1"></i></a>
+    </div>
+</div>
+
+<div class="home-section">
+    <div class="card-w home-myevent">
+        <div class="row align-items-center g-5">
+            <div class="col-lg-7">
+                <div class="lbl" style="color:var(--w-sand-300);">Planning something bigger?</div>
+                <h2 class="h-sec mt-3" style="color:#F6F8F6;font-size:38px;">Create a MyEvent and keep every booking in one basket</h2>
+                <p class="mt-3 mb-4" style="color:#C3D0C7;font-size:17px;line-height:1.65;max-width:560px;">Set your event date and budget once, then add the photographer, the cake and the flowers underneath it. Wijha tracks what you have spent against your budget. Booking a single service? You can skip this entirely.</p>
+                <a href="@Url.RouteUrl(ViewBag.IsCustomerAuth == true ? "customer.myevents.index" : "register")" class="btn btn-w-gold">Start planning <i class="bi bi-arrow-right ms-1"></i></a>
+            </div>
+            <div class="col-lg-5">
+                <div class="card-w" style="padding:26px;border-radius:var(--r-lg);">
+                    <div class="d-flex justify-content-between align-items-center gap-2">
+                        <div><h3 class="h-card mb-1">Alanoud's Wedding</h3><div class="muted" style="font-size:13.5px;">12 Nov 2026 &middot; Jubail</div></div>
+                        <span class="badge-w b-warn">Planning</span>
+                    </div>
+                    <hr class="divider my-3">
+                    <div class="d-flex justify-content-between gap-2" style="font-size:14px;"><span class="muted">Photography &middot; Lamasat Studio</span><span class="price">2,500</span></div>
+                    <div class="d-flex justify-content-between gap-2 mt-2" style="font-size:14px;"><span class="muted">Cake &middot; Hala Cakes</span><span class="price">650</span></div>
+                    <div class="d-flex justify-content-between gap-2 mt-2" style="font-size:14px;"><span class="muted">Flowers &middot; Zahrat Al-Sharqiya</span><span class="price">900</span></div>
+                    <div style="margin-top:20px;background:var(--w-cream-200);border-radius:var(--r-md);padding:16px;">
+                        <div class="d-flex justify-content-between align-items-center mb-2 gap-2">
+                            <span class="lbl">Budget used</span>
+                            <span style="font-size:13.5px;font-weight:700;color:var(--w-green-700);">SAR 4,050 of 12,000</span>
+                        </div>
+                        <div style="height:10px;background:#E3DED6;border-radius:var(--r-pill);overflow:hidden;">
+                            <div style="width:34%;height:10px;background:var(--w-sand-400);border-radius:var(--r-pill);"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

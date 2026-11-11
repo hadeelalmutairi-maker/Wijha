@@ -1,0 +1,50 @@
+@using Wijha.Support.Auth
+@{
+    var admin = Auth.Guard(ViewContext.HttpContext, "admin").User<Wijha.Models.Admin>()!;
+    var dbContext = ViewContext.HttpContext.RequestServices.GetRequiredService<Wijha.Data.AppDbContext>();
+    var pendingProviders = dbContext.ServiceProviders.Count(sp => sp.ApprovalStatus == "Pending");
+    var pendingBookings = dbContext.Bookings.Count(b => b.BookingStatus == "Pending");
+}
+<aside class="admin-sidebar">
+    <a href="@Url.RouteUrl("admin.dashboard")" class="admin-sidebar-brand">
+        @await Html.PartialAsync("~/Views/components/_logo.cshtml", new { dark = true, size = 40 })
+        <div>
+            <div class="logo-txt" style="color:#F2F5F2;font-size:20px;">Wijha</div>
+            <div class="logo-sub" style="color:#A9B8AD;">Admin Console</div>
+        </div>
+    </a>
+
+    <nav aria-label="Admin">
+        <div class="nav-group">Overview</div>
+        <a href="@Url.RouteUrl("admin.dashboard")"><i class="bi bi-grid-1x2"></i> Dashboard</a>
+
+        <div class="nav-group">Manage</div>
+        <a href="@Url.RouteUrl("admin.providers.index")"><i class="bi bi-shop"></i> Providers
+            @if (pendingProviders > 0) { <span class="count" title="Waiting for approval">@pendingProviders</span> }</a>
+        <a href="@Url.RouteUrl("admin.customers.index")"><i class="bi bi-people"></i> Customers</a>
+        <a href="@Url.RouteUrl("admin.bookings.index")"><i class="bi bi-calendar-check"></i> Bookings
+            @if (pendingBookings > 0) { <span class="count" title="Pending requests">@pendingBookings</span> }</a>
+        <a href="@Url.RouteUrl("admin.payments.index")"><i class="bi bi-credit-card"></i> Payments</a>
+        <a href="@Url.RouteUrl("admin.reviews.index")"><i class="bi bi-star"></i> Reviews</a>
+        <a href="@Url.RouteUrl("admin.services.index")"><i class="bi bi-tags"></i> Service catalogue</a>
+
+        <div class="nav-group">Reports</div>
+        <a href="@Url.RouteUrl("admin.reports.earnings")"><i class="bi bi-cash-stack"></i> Earnings</a>
+        <a href="@Url.RouteUrl("admin.reports.performance")"><i class="bi bi-graph-up-arrow"></i> Provider performance</a>
+    </nav>
+
+    <div class="admin-sidebar-foot">
+        <a href="@Url.RouteUrl("admin.profile.edit")" class="d-flex align-items-center gap-2 mb-3 text-decoration-none" title="My profile">
+            <div class="av" style="background:#D8BD9E;">@admin.FullName.Substring(0, 1).ToUpperInvariant()</div>
+            <div style="min-width:0;">
+                <div style="color:#F2F5F2;font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">@admin.FullName</div>
+                <div style="color:#8FA294;font-size:12px;">@admin.AdminRole</div>
+            </div>
+        </a>
+        <form method="post" action="@Url.RouteUrl("admin.logout")"
+              data-confirm="You will need to log in again to use the admin console." data-confirm-title="Log out?" data-confirm-ok="Log out" data-confirm-icon="bi-box-arrow-right">
+            @Html.AntiForgeryToken()
+            <button type="submit" class="btn btn-w-ghost btn-sm-w btn-block" style="border-color:rgba(255,255,255,.25);color:#E7EDE8;"><i class="bi bi-box-arrow-right me-2"></i>Log out</button>
+        </form>
+    </div>
+</aside>

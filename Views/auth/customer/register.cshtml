@@ -1,0 +1,88 @@
+@{
+    Layout = "~/Views/layouts/_auth.cshtml";
+    ViewBag.Title = "Create your account | Wijha";
+}
+@using Wijha.Support.Http
+@{
+    var errors = new ErrorBag(ViewContext);
+    int errCount = errors.Count();
+}
+
+@section quote {
+    <div class="auth-quote">One account.<br>Every part of<br>your event.</div>
+}
+
+@await Html.PartialAsync("~/Views/auth/_join-steps.cshtml")
+<h1 class="h-pg mb-2">Your details</h1>
+<p class="muted mb-4" style="font-size:15.5px;">Creating a <strong style="color:var(--w-green-700);">customer</strong> account.</p>
+
+@if (errCount > 0)
+{
+    <div class="alert-w a-err mb-4">
+        <i class="bi bi-exclamation-circle-fill" style="font-size:18px;"></i>
+        <div><strong>@(errCount == 1 ? "One field needs" : $"{errCount} fields need") attention.</strong><br>Fix the highlighted @(errCount == 1 ? "field" : "fields") and try again.</div>
+    </div>
+}
+
+<form method="post" action="@Url.RouteUrl("register")">
+    @Html.AntiForgeryToken()
+    <div class="row g-3">
+        <div class="col-sm-6"><div class="field">
+            <label for="first_name">First name</label>
+            <input type="text" name="first_name" id="first_name" class="inp @(errors.Has("first_name") ? "inp-err" : "")"
+                   value="@Flash.Old(ViewContext.HttpContext, "first_name")" required minlength="2" maxlength="60" placeholder="Hadeel" autocomplete="given-name">
+            @if (errors.Has("first_name")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("first_name")</div> }
+        </div></div>
+        <div class="col-sm-6"><div class="field">
+            <label for="last_name">Last name</label>
+            <input type="text" name="last_name" id="last_name" class="inp @(errors.Has("last_name") ? "inp-err" : "")"
+                   value="@Flash.Old(ViewContext.HttpContext, "last_name")" required minlength="2" maxlength="60" placeholder="Almutairi" autocomplete="family-name">
+            @if (errors.Has("last_name")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("last_name")</div> }
+        </div></div>
+    </div>
+
+    <div class="field">
+        <label for="email">Email address</label>
+        <div class="inp-icon"><i class="bi bi-envelope"></i>
+            <input type="email" name="email" id="email" class="inp @(errors.Has("email") ? "inp-err" : "")"
+                   value="@Flash.Old(ViewContext.HttpContext, "email")" required maxlength="150" placeholder="you@example.com" autocomplete="email"></div>
+        @if (errors.Has("email")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("email")</div> }
+    </div>
+
+    <div class="row g-3">
+        <div class="col-sm-6"><div class="field">
+            <label for="phone">Phone number</label>
+            <div class="inp-icon"><i class="bi bi-telephone"></i>
+                <input type="tel" name="phone" id="phone" class="inp @(errors.Has("phone") ? "inp-err" : "")"
+                       value="@Flash.Old(ViewContext.HttpContext, "phone")" required pattern="^(05\d{8}|\+9665\d{8})$" inputmode="tel"
+                       placeholder="05X XXX XXXX" autocomplete="tel"></div>
+            @if (errors.Has("phone")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("phone")</div> }
+        </div></div>
+        <div class="col-sm-6">@await Html.PartialAsync("~/Views/auth/_city-select.cshtml")</div>
+    </div>
+
+    <div class="field">
+        <label for="gender">Gender (optional)</label>
+        <select name="gender" id="gender" class="inp @(errors.Has("gender") ? "inp-err" : "")">
+            <option value="">Prefer not to say</option>
+            <option value="Male" @(Flash.Old(ViewContext.HttpContext, "gender") == "Male" ? "selected" : "")>Male</option>
+            <option value="Female" @(Flash.Old(ViewContext.HttpContext, "gender") == "Female" ? "selected" : "")>Female</option>
+        </select>
+        @if (errors.Has("gender")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("gender")</div> }
+    </div>
+
+    <div class="row g-3">
+        <div class="col-sm-6">
+            @await Html.PartialAsync("~/Views/auth/_password-field.cshtml", (object)new { id="password", name="password", label="Password", placeholder="At least 8 characters", autocomplete="new-password", minlength=8, pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z\\d]).{8,}$", title="At least 8 characters, with upper and lower case, a number and a symbol." })
+        </div>
+        <div class="col-sm-6">
+            @await Html.PartialAsync("~/Views/auth/_password-field.cshtml", (object)new { id="password_confirmation", name="password_confirmation", label="Confirm password", placeholder="Repeat password", autocomplete="new-password", minlength=8 })
+        </div>
+    </div>
+    <div class="help" style="margin-top:-8px;margin-bottom:16px;">Use 8 characters or more with an uppercase letter, a number and a symbol.</div>
+
+    @await Html.PartialAsync("~/Views/auth/_terms.cshtml")
+
+    <button type="submit" class="btn btn-w btn-lg-w btn-block">Create account</button>
+    <p class="text-center muted mt-4 mb-0" style="font-size:15px;">Already have an account? <a href="@Url.RouteUrl("login")" style="color:var(--w-green-700);font-weight:700;">Log in</a></p>
+</form>

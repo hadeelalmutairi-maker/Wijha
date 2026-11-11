@@ -1,0 +1,142 @@
+@using Wijha.Models
+@using Wijha.Support
+@{
+    Layout = "~/Views/layouts/_admin.cshtml";
+    ViewBag.Title = "Reviews | Admin | Wijha";
+    var reviews = (LengthAwarePaginator<Review>)ViewBag.Reviews;
+    var counts = (Dictionary<string, int>)ViewBag.Counts;
+    string q = ViewBag.Q as string ?? "";
+    int? rating = ViewBag.Rating as int?;
+    string visibility = ViewBag.Visibility as string ?? "";
+    decimal average = Convert.ToDecimal(ViewBag.Average ?? 0m);
+    string chipKey = visibility == "visible" ? "Visible" : (visibility == "hidden" ? "Hidden" : "All");
+}
+<div class="page-pad">
+    @await Html.PartialAsync("~/Views/partials/_flash.cshtml")
+
+    @await Html.PartialAsync("~/Views/components/_admin-head.cshtml", (object)new {
+        eyebrow = "Manage",
+        title = "Reviews",
+        subtitle = "Customer reviews of completed bookings. Hide a review to take it off the public pages; the provider rating updates straight away."
+    })
+
+    <form method="GET" action="@Url.RouteUrl("admin.reviews.index")" class="a-filters">
+        <input type="hidden" name="visibility" value="@visibility">
+        <div class="date-filter">
+            <div class="date-filter-field f-search">
+                <label class="lbl d-block mb-2" for="q">Search</label>
+                <div class="inp-icon"><i class="bi bi-search"></i>
+                    <input type="search" name="q" id="q" class="inp" value="@q" placeholder="Review text, customer, provider"></div>
+            </div>
+            <div class="date-filter-field">
+                <label class="lbl d-block mb-2" for="rating">Rating</label>
+                <select name="rating" id="rating" class="inp" onchange="this.form.submit()">
+                    <option value="">All ratings</option>
+                    @for (int r = 5; r >= 1; r--)
+                    {
+                        <option value="@r" @(rating == r ? "selected" : "")>@r @(r == 1 ? "star" : "stars")</option>
+                    }
+                </select>
+            </div>
+            <button type="submit" class="btn btn-w btn-sm-w date-filter-btn">Search</button>
+            @if (q != "" || rating.HasValue)
+            {
+                <a href="@Url.RouteUrl("admin.reviews.index", !string.IsNullOrEmpty(visibility) ? (object)new { visibility } : new { })" class="btn btn-w-ghost btn-sm-w date-filter-btn">Clear</a>
+            }
+        </div>
+    </form>
+
+    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap mb-3">
+        <div class="d-flex gap-2 flex-wrap">
+            @foreach (var kv in counts)
+            {
+                string visParam = kv.Key == "All" ? "" : kv.Key.ToLower();
+                <a href="@Url.RouteUrl("admin.reviews.index", string.IsNullOrEmpty(visParam) ? (object)new { } : new { visibility = visParam })"
+                   class="chip btn-sm-w @(chipKey == kv.Key ? "chip-on" : "")">@kv.Key (@kv.Value)</a>
+            }
+        </div>
+        <span class="a-note"><i class="bi bi-star-fill" style="color:var(--w-sand-400);"></i> @average.ToString("F1") average of visible reviews</span>
+    </div>
+
+    <div class="a-table-wrap">
+        <table class="a-table" style="min-width:980px;">
+            <thead><tr><th>Review</th><th>Customer</th><th>Provider &middot; service</th><th>Rating</th><th>Date</th><th>Visibility</th><th class="num">Actions</th></tr></thead>
+            <tbody>
+            @if (reviews.Items.Any())
+            {
+                @foreach (var review in reviews.Items)
+                {
+                    <tr>
+                        <td style="max-width:300px;">
+                            @if (!string.IsNullOrEmpty(review.ReviewText))
+                            {
+                                <span style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">@review.ReviewText</span>
+                            }
+                            else
+                            {
+                                <span class="sub">Rating only</span>
+                            }
+                        </td>
+                        <td>@review.Booking?.Customer?.FirstName @review.Booking?.Customer?.LastName</td>
+                        <td>@review.Booking?.ProviderService?.ServiceProvider?.BusinessName<div class="sub">@review.Booking?.ProviderService?.OfferingTitle</div></td>
+                        <td style="white-space:nowrap;"><span style="color:var(--w-sand-400);letter-spacing:1px;">@for (int i = 0; i < 5; i++) { <i class="bi bi-star@(i < review.Rating ? "-fill" : "")"></i> }</span></td>
+                        <td class="sub" style="white-space:nowrap;">@review.ReviewDate.ToString("j MMM yyyy")</td>
+                        <td><span class="badge-w @(review.IsVisible ? "b-ok" : "b-grey")">@(review.IsVisible ? "Visible" : "Hidden")</span></td>
+                        <td><div class="a-actions">
+                            <button type="button" class="btn btn-w-ghost btn-sm-w" data-bs-toggle="modal" data-bs-target="#view-review-@review.ReviewId">View</button>
+                            <form method="POST" action="@Url.RouteUrl("admin.reviews.hide", new { id = review.ReviewId })"
+                                  data-confirm="@(review.IsVisible ? "The review will be removed from the provider's public pages and their rating recalculated." : "The review will appear on the provider's public pages again and count towards their rating.")"
+                                  data-confirm-title="@(review.IsVisible ? "Hide this review?" : "Show this review again?")"
+                                  data-confirm-ok="@(review.IsVisible ? "Hide" : "Show")"
+                                  data-confirm-icon="@(review.IsVisible ? "bi-eye-slash" : "bi-eye")">
+                                @Html.AntiForgeryToken()
+                                <button type="submit" class="btn btn-w-ghost btn-sm-w">@(review.IsVisible ? "Hide" : "Show")</button>
+                            </form>
+                            <form method="POST" action="@Url.RouteUrl("admin.reviews.destroy", new { id = review.ReviewId })"
+                                  data-confirm="This permanently removes the review by @review.Booking?.Customer?.FirstName and recalculates the provider's rating. This cannot be undone."
+                                  data-confirm-title="Delete this review?" data-confirm-ok="Delete" data-confirm-tone="danger">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="_method" value="DELETE">
+                                <button type="submit" class="btn btn-w-ghost btn-sm-w" style="color:var(--w-danger);" aria-label="Delete review"><i class="bi bi-trash"></i></button>
+                            </form>
+                        </div></td>
+                    </tr>
+                }
+            }
+            else
+            {
+                <tr><td colspan="7" class="a-empty"><i class="bi bi-star d-block mb-2" style="font-size:26px;"></i>No reviews match your search.</td></tr>
+            }
+            </tbody>
+        </table>
+    </div>
+    <div class="mt-3">@Html.Raw(reviews.Links())</div>
+</div>
+
+@foreach (var review in reviews.Items)
+{
+    <div class="modal fade" id="view-review-@review.ReviewId" tabindex="-1" aria-labelledby="rv-title-@review.ReviewId">
+        <div class="modal-dialog"><div class="modal-content" style="border-radius:var(--r-xl);border:0;">
+            <div class="modal-body" style="padding:28px;">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <h2 class="h-sec mb-0" id="rv-title-@review.ReviewId">Review details</h2>
+                    <span class="badge-w @(review.IsVisible ? "b-ok" : "b-grey")">@(review.IsVisible ? "Visible" : "Hidden")</span>
+                </div>
+                <div style="color:var(--w-sand-400);letter-spacing:2px;font-size:18px;" class="mb-3">
+                    @for (int i = 0; i < 5; i++) { <i class="bi bi-star@(i < review.Rating ? "-fill" : "")"></i> }
+                </div>
+                <div class="sum-row"><span class="k">Customer</span><span class="v">@review.Booking?.Customer?.FirstName @review.Booking?.Customer?.LastName</span></div>
+                <div class="sum-row"><span class="k">Provider</span><span class="v">@review.Booking?.ProviderService?.ServiceProvider?.BusinessName</span></div>
+                <div class="sum-row"><span class="k">Service</span><span class="v">@review.Booking?.ProviderService?.OfferingTitle</span></div>
+                <div class="sum-row"><span class="k">Booking</span><span class="v">@review.Booking?.Reference &middot; @review.Booking?.ServiceDate.ToString("j MMM yyyy")</span></div>
+                <div class="sum-row"><span class="k">Reviewed</span><span class="v">@review.ReviewDate.ToString("j MMM yyyy")</span></div>
+                <hr class="divider my-3">
+                <div class="lbl mb-2">Review text</div>
+                <p class="mb-0" style="font-size:14.5px;line-height:1.65;color:var(--w-green-700);">@(string.IsNullOrEmpty(review.ReviewText) ? "No written review, rating only." : review.ReviewText)</p>
+            </div>
+            <div class="modal-foot d-flex gap-2">
+                <button type="button" class="btn btn-w-ghost flex-grow-1" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div></div>
+    </div>
+}

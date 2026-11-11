@@ -1,0 +1,91 @@
+@using Wijha.Models
+@using Wijha.Support.Http
+@{
+    Layout = "~/Views/layouts/_provider.cshtml";
+    ViewBag.Title = "My categories | Wijha";
+    var categories = (IEnumerable<ServiceCategory>)ViewBag.Categories;
+    var errors = new ErrorBag(ViewContext);
+}
+<div class="page-pad">
+    @await Html.PartialAsync("~/Views/partials/_flash.cshtml")
+    <div class="crumbs p-0 mb-3"><a href="@Url.RouteUrl("provider.services.index")">My services</a> <i class="bi bi-chevron-right" style="font-size:10px;"></i> <span class="cur">Store categories</span></div>
+    <h1 class="h-pg mb-4">Storefront categories</h1>
+    <p class="muted mb-4" style="font-size:15px;max-width:640px;">Optional. Group your services into categories like "Weddings" or "Graduations" so customers can browse your store page more easily.</p>
+
+    <div class="row g-4">
+        <div class="col-md-5">
+            <div class="card-w" style="padding:26px;">
+                <h2 class="h-sec mb-3">Add a category</h2>
+                <form method="post" action="@Url.RouteUrl("provider.categories.store")">
+                    @Html.AntiForgeryToken()
+                    <div class="field">
+                        <label for="category_name">Category name</label>
+                        <input type="text" name="category_name" id="category_name" class="inp @(errors.Has("category_name") ? "inp-err" : "")"
+                               value="@Flash.Old(ViewContext.HttpContext, "category_name")" required maxlength="100" placeholder="Weddings">
+                        @if (errors.Has("category_name")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("category_name")</div> }
+                    </div>
+                    <div class="field" style="margin-bottom:0;">
+                        <label for="category_description">Description</label>
+                        <textarea name="category_description" id="category_description" class="inp inp-area @(errors.Has("category_description") ? "inp-err" : "")"
+                                  rows="3" maxlength="500">@Flash.Old(ViewContext.HttpContext, "category_description")</textarea>
+                        @if (errors.Has("category_description")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("category_description")</div> }
+                    </div>
+                    <button type="submit" class="btn btn-w btn-block mt-3">Add category</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="col-md-7">
+            @if (categories.Any())
+            {
+                @foreach (var category in categories)
+                {
+                    <div class="card-w mb-3" style="padding:20px;">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h3 class="h-card">@category.CategoryName</h3>
+                                <div class="muted" style="font-size:13.5px;">@(category.ProviderServices?.Count ?? 0) services</div>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <button type="button" class="btn btn-w-ghost btn-sm-w" data-bs-toggle="modal" data-bs-target="#edit-category-@category.ServiceCategoryId">Edit</button>
+                                <form method="post" action="@Url.RouteUrl("provider.categories.destroy", new { id = category.ServiceCategoryId })" onsubmit="return confirm('Delete this category?');">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="_method" value="DELETE">
+                                    <button type="submit" class="btn btn-w-ghost btn-sm-w" style="color:var(--w-danger);">Delete</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="modal fade" id="edit-category-@category.ServiceCategoryId" tabindex="-1">
+                        <div class="modal-dialog"><div class="modal-content" style="border-radius:var(--r-xl);border:0;">
+                            <form method="post" action="@Url.RouteUrl("provider.categories.update", new { id = category.ServiceCategoryId })">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="_method" value="PUT">
+                                <div class="modal-body" style="padding:28px;">
+                                    <h2 class="h-sec mb-3">Edit category</h2>
+                                    <div class="field">
+                                        <label for="edit_category_name_@category.ServiceCategoryId">Category name</label>
+                                        <input type="text" name="category_name" id="edit_category_name_@category.ServiceCategoryId" class="inp" maxlength="100" required value="@category.CategoryName">
+                                    </div>
+                                    <div class="field" style="margin-bottom:0;">
+                                        <label for="edit_category_description_@category.ServiceCategoryId">Description</label>
+                                        <textarea name="category_description" id="edit_category_description_@category.ServiceCategoryId" class="inp inp-area" rows="3" maxlength="500">@category.CategoryDescription</textarea>
+                                    </div>
+                                </div>
+                                <div class="modal-foot d-flex gap-2">
+                                    <button type="button" class="btn btn-w-ghost flex-grow-1" data-bs-dismiss="modal">Cancel</button>
+                                    <button type="submit" class="btn btn-w flex-grow-1">Save changes</button>
+                                </div>
+                            </form>
+                        </div></div>
+                    </div>
+                }
+            }
+            else
+            {
+                <p class="muted">No categories yet. Services will show under "Other".</p>
+            }
+        </div>
+    </div>
+</div>

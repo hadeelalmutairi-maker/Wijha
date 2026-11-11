@@ -1,0 +1,124 @@
+@using Wijha.Models
+@model Booking
+@{
+    Layout = null;
+    var payment = (Payment)ViewBag.Payment;
+    var provider = (ServiceProvider)ViewBag.Provider;
+    string invoiceNum = payment.InvoiceNumber ?? $"#{Model.BookingId}";
+}
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Invoice @invoiceNum | Wijha</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@@9..144,400;9..144,600;9..144,700&family=DM+Sans:wght@@400;500;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+<style>
+  :root{--w-green-900:#1F2E22;--w-green-800:#2B3D2F;--w-green-700:#3A5240;--w-green-400:#8CA092;--w-cream-100:#FBF8F2;--w-cream-200:#F2EDE2;--w-line:#DCE2DD;--w-danger:#B3463A;}
+  *{box-sizing:border-box;}
+  body{font-family:'DM Sans',sans-serif;color:var(--w-green-900);background:var(--w-cream-200);margin:0;padding:40px 20px;}
+  h1,h2,.ff{font-family:'Fraunces',Georgia,serif;font-weight:600;color:var(--w-green-800);}
+  .sheet{max-width:720px;margin:0 auto;background:#fff;border-radius:14px;padding:44px;box-shadow:0 10px 30px rgba(31,46,34,.08);}
+  .top{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;border-bottom:2px solid var(--w-green-800);padding-bottom:24px;margin-bottom:28px;}
+  .brand{display:flex;align-items:center;gap:12px;}
+  .brand-name{font-family:'Fraunces',serif;font-weight:700;font-size:22px;color:var(--w-green-800);}
+  .brand-sub{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--w-green-400);}
+  .inv-meta{text-align:right;font-size:13.5px;color:var(--w-green-700);}
+  .inv-meta .num{font-family:'Fraunces',serif;font-weight:700;font-size:19px;color:var(--w-green-900);}
+  .cols{display:flex;justify-content:space-between;gap:24px;margin-bottom:28px;flex-wrap:wrap;}
+  .col .lbl{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--w-green-400);margin-bottom:6px;}
+  .col .v{font-size:14.5px;line-height:1.6;}
+  table.lines{width:100%;border-collapse:collapse;margin-bottom:24px;}
+  table.lines th{text-align:left;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--w-green-400);border-bottom:1.5px solid var(--w-line);padding:0 0 10px;}
+  table.lines td{padding:14px 0;border-bottom:1px solid var(--w-line);font-size:14.5px;vertical-align:top;}
+  table.lines td.r{text-align:right;}
+  .totals{margin-left:auto;width:260px;}
+  .totals .row{display:flex;justify-content:space-between;font-size:14px;padding:6px 0;color:var(--w-green-700);}
+  .totals .row.total{border-top:2px solid var(--w-green-800);margin-top:6px;padding-top:12px;font-size:18px;font-weight:700;color:var(--w-green-900);}
+  .status-badge{display:inline-block;padding:4px 12px;border-radius:999px;font-size:12px;font-weight:700;}
+  .status-Paid{background:#E3EFE4;color:#2F6B3A;}
+  .status-Pending{background:#FBEFD9;color:#8A5A12;}
+  .status-Failed,.status-Refunded{background:#F6E3DF;color:#8A3326;}
+  .foot{margin-top:32px;padding-top:20px;border-top:1px solid var(--w-line);font-size:12.5px;color:var(--w-green-400);text-align:center;}
+  .print-bar{max-width:720px;margin:0 auto 16px;text-align:right;}
+  .print-btn{display:inline-flex;align-items:center;gap:8px;background:var(--w-green-800);color:#fff;border:0;border-radius:10px;padding:10px 20px;font-size:14px;font-weight:700;cursor:pointer;text-decoration:none;}
+  @@media print{body{background:#fff;padding:0;}.sheet{box-shadow:none;border-radius:0;max-width:100%;padding:0;}.print-bar{display:none;}}
+</style>
+</head>
+<body>
+  <div class="print-bar">
+    <button class="print-btn" onclick="window.print()"><i class="bi bi-printer-fill"></i> Print invoice</button>
+  </div>
+  <div class="sheet">
+    <div class="top">
+      <div class="brand">
+        @await Html.PartialAsync("~/Views/components/_logo.cshtml", (object)new { size = 52 })
+        <div>
+          <div class="brand-name">Wijha</div>
+          <div class="brand-sub">Event Services Marketplace</div>
+        </div>
+      </div>
+      <div class="inv-meta">
+        <div class="num">@invoiceNum</div>
+        <div>@(payment.PaymentDate.HasValue ? payment.PaymentDate.Value.ToString("dd MMM yyyy") : "N/A")</div>
+        <div class="status-badge status-@payment.PaymentStatus">@payment.PaymentStatus</div>
+      </div>
+    </div>
+
+    <div class="cols">
+      <div class="col">
+        <div class="lbl">Billed to</div>
+        <div class="v">
+          @Model.Customer?.FirstName @Model.Customer?.LastName<br>
+          @Model.Customer?.Email<br>
+          @Model.Customer?.Phone
+        </div>
+      </div>
+      <div class="col">
+        <div class="lbl">Service provider</div>
+        <div class="v">
+          @provider.BusinessName<br>
+          @provider.City<br>
+          @provider.Phone
+        </div>
+      </div>
+      <div class="col">
+        <div class="lbl">Booking</div>
+        <div class="v">
+          #@Model.BookingId<br>
+          @Model.ServiceDate.ToString("dd MMM yyyy")<br>
+          @Model.ServiceTime.ToString("HH:mm")
+        </div>
+      </div>
+    </div>
+
+    <table class="lines">
+      <tr><th>Description</th><th>Quantity</th><th class="r">Amount</th></tr>
+      <tr>
+        <td>
+          <strong>@Model.ProviderService?.OfferingTitle</strong><br>
+          <span style="color:var(--w-green-400);font-size:13px;">@Model.ProviderService?.Service?.ServiceName &middot; @Model.VenueAddress</span>
+        </td>
+        <td>@Model.Quantity</td>
+        <td class="r">SAR @Model.AgreedPrice.ToString("N2")</td>
+      </tr>
+    </table>
+
+    <div class="totals">
+      <div class="row"><span>Subtotal</span><span>SAR @payment.Amount.ToString("N2")</span></div>
+      <div class="row"><span>Platform fee</span><span>SAR 0.00</span></div>
+      @if (payment.RefundAmount.HasValue && payment.RefundAmount > 0)
+      {
+        <div class="row"><span>Refunded</span><span>&minus; SAR @payment.RefundAmount.Value.ToString("N2")</span></div>
+      }
+      <div class="row total"><span>Total paid</span><span>SAR @payment.Amount.ToString("N2")</span></div>
+    </div>
+
+    <div class="foot">
+      Paid via @payment.PaymentMethod &middot; Ref @(payment.TransactionRef ?? "N/A")<br>
+      Wijha Event Services Marketplace &middot; Saudi Arabia
+    </div>
+  </div>
+</body>
+</html>

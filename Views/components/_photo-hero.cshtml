@@ -1,0 +1,22 @@
+@model dynamic
+@{
+    string image = Model?.image ?? "table";
+    string? eyebrow = Model?.eyebrow;
+    string title = Model?.title ?? "";
+    string? subtitle = Model?.subtitle;
+    string? back = Model?.back;
+    string backLabel = Model?.backLabel ?? "Back";
+    string src = (image.StartsWith("http://") || image.StartsWith("https://") || image.StartsWith("/"))
+        ? image : $"/images/theme/{image}.jpg";
+}
+<section class="photo-hero" style="--hero-img:url('@src');">
+    <div class="photo-hero-inner">
+        @if (back != null)
+        {
+            <a href="@back" class="photo-hero-back"><i class="bi bi-chevron-left"></i> @backLabel</a>
+        }
+        @if (eyebrow != null) { <div class="photo-hero-eyebrow">@eyebrow</div> }
+        <h1 class="photo-hero-title">@title</h1>
+        @if (subtitle != null) { <p class="photo-hero-sub">@subtitle</p> }
+    </div>
+</section>

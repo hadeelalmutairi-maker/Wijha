@@ -1,0 +1,134 @@
+@using Wijha.Models
+@using Wijha.Support.Http
+@{
+    Layout = "~/Views/layouts/_admin.cshtml";
+    ViewBag.Title = "My profile | Admin | Wijha";
+    var admin = ViewBag.Admin as Admin;
+    var errors = new ErrorBag(ViewContext);
+}
+<div class="page-pad">
+    @await Html.PartialAsync("~/Views/partials/_flash.cshtml")
+    @await Html.PartialAsync("~/Views/components/_admin-head.cshtml", (object)new {
+        eyebrow = "Account",
+        title = "My profile",
+        subtitle = "Your details for the Wijha admin console."
+    })
+
+    <div class="row g-3">
+        <div class="col-xl-8">
+            <form method="POST" action="@Url.RouteUrl("admin.profile.update")" class="a-card mb-3" style="height:auto;"
+                  data-confirm="Your name, email and phone will be updated." data-confirm-title="Save profile changes?" data-confirm-ok="Save changes" data-confirm-icon="bi-person-check">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="_method" value="PUT">
+                <div class="a-card-head"><h2 class="h-sec mb-0" style="font-size:22px;">Profile details</h2></div>
+                <div class="row g-3">
+                    <div class="col-md-6"><div class="field">
+                        <label for="full_name">Full name <span style="color:var(--w-danger);">*</span></label>
+                        <div class="inp-icon"><i class="bi bi-person"></i>
+                            <input type="text" name="full_name" id="full_name" class="inp @(errors.Has("full_name") ? "inp-err" : "")"
+                                   value="@(Flash.Old(ViewContext.HttpContext, "full_name") ?? admin?.FullName)" required minlength="3" maxlength="100"></div>
+                        @if (errors.Has("full_name")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("full_name")</div> }
+                    </div></div>
+                    <div class="col-md-6"><div class="field">
+                        <label for="phone">Phone</label>
+                        <div class="inp-icon"><i class="bi bi-telephone"></i>
+                            <input type="tel" name="phone" id="phone" class="inp @(errors.Has("phone") ? "inp-err" : "")"
+                                   value="@(Flash.Old(ViewContext.HttpContext, "phone") ?? admin?.Phone)" placeholder="05X XXX XXXX"></div>
+                        @if (errors.Has("phone")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("phone")</div> }
+                    </div></div>
+                    <div class="col-md-6"><div class="field">
+                        <label for="email">Email address <span style="color:var(--w-danger);">*</span></label>
+                        <div class="inp-icon"><i class="bi bi-envelope"></i>
+                            <input type="email" name="email" id="email" class="inp @(errors.Has("email") ? "inp-err" : "")"
+                                   value="@(Flash.Old(ViewContext.HttpContext, "email") ?? admin?.Email)" required maxlength="150" data-original="@admin?.Email"></div>
+                        <div class="help">You log in with this email.</div>
+                        @if (errors.Has("email")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("email")</div> }
+                    </div></div>
+                    <div class="col-md-6 d-none" id="email-password">
+                        <div class="field">
+                            <label for="profile_current_password">Current password</label>
+                            <div class="inp-icon"><i class="bi bi-lock"></i>
+                                <input type="password" name="email_password" id="profile_current_password" class="inp" placeholder="Needed to change your email" autocomplete="current-password">
+                            </div>
+                            <div class="help">Required only when you change your email.</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="d-flex justify-content-end mt-2">
+                    <button type="submit" class="btn btn-w"><i class="bi bi-check-lg me-2"></i>Save changes</button>
+                </div>
+            </form>
+
+            <form method="POST" action="@Url.RouteUrl("admin.profile.password")" class="a-card" style="height:auto;"
+                  data-confirm="You will use the new password the next time you log in." data-confirm-title="Change your password?" data-confirm-ok="Change password" data-confirm-icon="bi-shield-lock">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="_method" value="PUT">
+                <div class="a-card-head"><h2 class="h-sec mb-0" style="font-size:22px;">Change password</h2></div>
+                <div class="row g-3">
+                    <div class="col-md-12">
+                        <div class="field">
+                            <label for="current_password">Current password</label>
+                            <div class="inp-icon"><i class="bi bi-lock"></i>
+                                <input type="password" name="current_password" id="current_password" class="inp" placeholder="Your current password" autocomplete="current-password">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="field">
+                            <label for="password">New password</label>
+                            <div class="inp-icon"><i class="bi bi-lock"></i>
+                                <input type="password" name="password" id="password" class="inp" placeholder="At least 8 characters" autocomplete="new-password" minlength="8"
+                                       pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{8,}$"
+                                       title="At least 8 characters, with upper and lower case, a number and a symbol.">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="field">
+                            <label for="password_confirmation">Confirm new password</label>
+                            <div class="inp-icon"><i class="bi bi-lock"></i>
+                                <input type="password" name="password_confirmation" id="password_confirmation" class="inp" placeholder="Type it again" autocomplete="new-password" minlength="8">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-2">
+                    <span class="a-note">8+ characters with upper and lower case letters, a number and a symbol.</span>
+                    <button type="submit" class="btn btn-w"><i class="bi bi-shield-lock me-2"></i>Change password</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="col-xl-4">
+            <div class="a-card" style="height:auto;">
+                <div class="d-flex align-items-center gap-3 mb-3">
+                    <div class="av" style="width:56px;height:56px;font-size:20px;background:#D8BD9E;">@admin?.FullName.Substring(0, 1).ToUpper()</div>
+                    <div><div style="font-weight:700;font-size:17px;">@admin?.FullName</div>
+                        <span class="badge-w b-gold mt-1">@admin?.AdminRole</span></div>
+                </div>
+                <hr class="divider my-3">
+                <div class="sum-row"><span class="k">Email</span><span class="v" style="overflow-wrap:anywhere;">@admin?.Email</span></div>
+                <div class="sum-row"><span class="k">Phone</span><span class="v">@(string.IsNullOrEmpty(admin?.Phone) ? "Not set" : admin.Phone)</span></div>
+                <div class="sum-row"><span class="k">Last login</span><span class="v">@(admin?.LastLogin?.ToString("j MMM yyyy, HH:mm") ?? "Never")</span></div>
+                <div class="sum-row"><span class="k">Admin since</span><span class="v">@(admin?.CreatedAt?.ToString("j MMM yyyy") ?? "Unknown")</span></div>
+                <p class="a-note mt-3 mb-0"><i class="bi bi-info-circle me-1"></i>Your role is set by a Super Admin and cannot be changed here.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section scripts {
+<script>
+(function () {
+    const email = document.getElementById('email');
+    const box = document.getElementById('email-password');
+    const toggle = function () {
+        const changed = email.value.trim().toLowerCase() !== email.dataset.original.toLowerCase();
+        box.classList.toggle('d-none', !changed);
+        document.getElementById('profile_current_password').required = changed;
+    };
+    email.addEventListener('input', toggle);
+    toggle();
+})();
+</script>
+}

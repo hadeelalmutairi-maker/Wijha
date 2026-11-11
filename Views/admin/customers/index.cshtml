@@ -1,0 +1,151 @@
+@using Wijha.Models
+@using Wijha.Support
+@{
+    Layout = "~/Views/layouts/_admin.cshtml";
+    ViewBag.Title = "Customers | Admin | Wijha";
+    var customers = (LengthAwarePaginator<Customer>)ViewBag.Customers;
+    var counts = (Dictionary<string, int>)ViewBag.Counts;
+    var cities = (IEnumerable<string>)ViewBag.Cities;
+    string q = ViewBag.Q as string ?? "";
+    string status = ViewBag.Status as string ?? "All";
+    string sort = ViewBag.Sort as string ?? "newest";
+    string city = ViewBag.City as string ?? "";
+    var errors = new Wijha.Support.Http.ErrorBag(ViewContext);
+}
+<div class="page-pad">
+    @await Html.PartialAsync("~/Views/partials/_flash.cshtml")
+    @if (errors.Has("reason"))
+    {
+        <div class="alert-w a-err mb-3"><i class="bi bi-exclamation-circle-fill"></i><div><strong>Nothing was changed.</strong> @errors.First("reason")</div></div>
+    }
+
+    @await Html.PartialAsync("~/Views/components/_admin-head.cshtml", (object)new {
+        eyebrow = "Manage",
+        title = "Customers",
+        subtitle = "People who book on Wijha. Block an account to stop it logging in."
+    })
+
+    <form method="GET" action="@Url.RouteUrl("admin.customers.index")" class="a-filters">
+        <input type="hidden" name="account_status" value="@(status == "All" ? "" : status)">
+        <div class="date-filter">
+            <div class="date-filter-field f-search">
+                <label class="lbl d-block mb-2" for="q">Search</label>
+                <div class="inp-icon"><i class="bi bi-search"></i>
+                    <input type="search" name="q" id="q" class="inp" value="@q" placeholder="Name, email, phone"></div>
+            </div>
+            <div class="date-filter-field">
+                <label class="lbl d-block mb-2" for="city">City</label>
+                <select name="city" id="city" class="inp" onchange="this.form.submit()">
+                    <option value="">All cities</option>
+                    @foreach (var c in cities)
+                    {
+                        <option value="@c" @(city == c ? "selected" : "")>@c</option>
+                    }
+                </select>
+            </div>
+            <div class="date-filter-field">
+                <label class="lbl d-block mb-2" for="sort">Sort by</label>
+                <select name="sort" id="sort" class="inp" onchange="this.form.submit()">
+                    <option value="newest" @(sort == "newest" ? "selected" : "")>Newest first</option>
+                    <option value="name" @(sort == "name" ? "selected" : "")>Name (A–Z)</option>
+                    <option value="bookings" @(sort == "bookings" ? "selected" : "")>Most bookings</option>
+                    <option value="last_login" @(sort == "last_login" ? "selected" : "")>Recently active</option>
+                </select>
+            </div>
+            <button type="submit" class="btn btn-w btn-sm-w date-filter-btn">Search</button>
+            @if (q != "" || !string.IsNullOrEmpty(city) || sort != "newest")
+            {
+                <a href="@Url.RouteUrl("admin.customers.index", status == "All" ? (object)new { } : new { account_status = status })" class="btn btn-w-ghost btn-sm-w date-filter-btn">Clear</a>
+            }
+        </div>
+    </form>
+
+    <div class="d-flex gap-2 flex-wrap mb-3">
+        @foreach (var kv in counts)
+        {
+            <a href="@Url.RouteUrl("admin.customers.index", kv.Key == "All" ? (object)new { } : new { account_status = kv.Key })"
+               class="chip btn-sm-w @(status == kv.Key ? "chip-on" : "")">@kv.Key (@kv.Value)</a>
+        }
+    </div>
+
+    <div class="a-table-wrap">
+        <table class="a-table" style="min-width:900px;">
+            <thead><tr><th>Customer</th><th>Contact</th><th>City</th><th class="num">Bookings</th><th>Joined</th><th>Last login</th><th>Status</th><th class="num">Actions</th></tr></thead>
+            <tbody>
+            @if (customers.Items.Any())
+            {
+                @foreach (var customer in customers.Items)
+                {
+                    string initials = $"{customer.FirstName?[0]}{customer.LastName?[0]}".ToUpper();
+                    int bookingsCount = customer.BookingsCount ?? 0;
+                    <tr>
+                        <td><div class="d-flex align-items-center gap-2">
+                            @await Html.PartialAsync("~/Views/components/_avatar.cshtml", (object)new { url = Wijha.Helpers.WijhaHelpers.ImageUrl(customer.ProfileImageUrl), initials, size = 34 })
+                            <strong>@customer.FirstName @customer.LastName</strong>
+                        </div></td>
+                        <td>@customer.Email<div class="sub">@customer.Phone</div></td>
+                        <td>@(string.IsNullOrEmpty(customer.City) ? "Not set" : customer.City)</td>
+                        <td class="num">
+                            @if (bookingsCount > 0)
+                            {
+                                <a href="@Url.RouteUrl("admin.bookings.index", new { q = customer.Email })" style="font-weight:700;color:var(--w-green-700);">@bookingsCount</a>
+                            }
+                            else { @:0 }
+                        </td>
+                        <td class="sub" style="white-space:nowrap;">@(customer.RegistrationDate?.ToString("j MMM yyyy") ?? "Unknown")</td>
+                        <td class="sub" style="white-space:nowrap;">@(customer.LastLogin.HasValue ? customer.LastLogin.Value.ToString("j MMM yyyy") : "Never")</td>
+                        <td><span class="badge-w @(customer.AccountStatus == "Active" ? "b-ok" : "b-err")">@customer.AccountStatus</span></td>
+                        <td><div class="a-actions">
+                            @if (customer.AccountStatus == "Active")
+                            {
+                                <button type="button" class="btn btn-w-ghost btn-sm-w" style="color:var(--w-danger);" data-bs-toggle="modal" data-bs-target="#block-@customer.CustomerId">Block</button>
+                            }
+                            else
+                            {
+                                <form method="POST" action="@Url.RouteUrl("admin.customers.unblock", new { id = customer.CustomerId })"
+                                      data-confirm="@customer.FirstName @customer.LastName will be able to log in and book again."
+                                      data-confirm-title="Unblock this customer?" data-confirm-ok="Unblock" data-confirm-icon="bi-unlock">
+                                    @Html.AntiForgeryToken()
+                                    <button type="submit" class="btn btn-w-ghost btn-sm-w">Unblock</button>
+                                </form>
+                            }
+                        </div></td>
+                    </tr>
+                }
+            }
+            else
+            {
+                <tr><td colspan="8" class="a-empty"><i class="bi bi-people d-block mb-2" style="font-size:26px;"></i>No customers match your search.</td></tr>
+            }
+            </tbody>
+        </table>
+    </div>
+    <div class="mt-3">@Html.Raw(customers.Links())</div>
+</div>
+
+@foreach (var customer in customers.Items)
+{
+    @if (customer.AccountStatus == "Active")
+    {
+        <div class="modal fade" id="block-@customer.CustomerId" tabindex="-1" aria-labelledby="block-title-@customer.CustomerId">
+            <div class="modal-dialog"><div class="modal-content" style="border-radius:var(--r-xl);border:0;">
+                <form method="POST" action="@Url.RouteUrl("admin.customers.block", new { id = customer.CustomerId })"
+                      data-confirm="@customer.FirstName @customer.LastName will be logged out and cannot log in or book until you unblock them."
+                      data-confirm-title="Block this customer?" data-confirm-ok="Block" data-confirm-tone="danger">
+                    @Html.AntiForgeryToken()
+                    <div class="modal-body" style="padding:28px;">
+                        <h2 class="h-sec mb-3" id="block-title-@customer.CustomerId">Block @customer.FirstName @customer.LastName</h2>
+                        <div class="field mb-0">
+                            <label for="cr-@customer.CustomerId">Reason <span style="color:var(--w-danger);">*</span></label>
+                            <textarea name="reason" id="cr-@customer.CustomerId" class="inp inp-area" rows="3" maxlength="500" required placeholder="Kept in the admin log."></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-foot d-flex gap-2">
+                        <button type="button" class="btn btn-w-ghost flex-grow-1" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-w-danger-fill flex-grow-1">Continue</button>
+                    </div>
+                </form>
+            </div></div>
+        </div>
+    }
+}

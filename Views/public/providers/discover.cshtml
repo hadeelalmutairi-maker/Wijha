@@ -1,0 +1,117 @@
+@using Wijha.Models
+@using Wijha.Helpers
+@{
+    Layout = "~/Views/layouts/_customer.cshtml";
+    ViewBag.Title = "Discover providers | Wijha";
+    string greeting = ViewBag.Greeting as string ?? "Hello";
+    var customer = (Customer)ViewBag.Customer;
+    var activeEvent = ViewBag.ActiveEvent as CustomerEvent;
+    decimal eventSpent = Convert.ToDecimal(ViewBag.EventSpent ?? 0m);
+    var recommended = (IEnumerable<ProviderService>)ViewBag.Recommended;
+    var services = (IEnumerable<Service>)ViewBag.Services;
+    var cities = (IEnumerable<string>)ViewBag.Cities;
+    string? fServiceId = ViewBag.ServiceId as string;
+}
+
+@if (activeEvent != null)
+{
+    decimal budget = activeEvent.EventBudget ?? 0m;
+    decimal pct = budget > 0 ? Math.Min(100m, eventSpent / budget * 100m) : 0m;
+    bool overBudget = budget > 0 && eventSpent > budget;
+    <div class="discover-event-banner">
+        <div class="discover-event-inner">
+            <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+                <div>
+                    <div class="lbl" style="color:var(--w-sand-300);">Active event</div>
+                    <h2 class="h-card mt-1 mb-0" style="color:#F6F8F6;">@activeEvent.EventName</h2>
+                    <div style="color:#A8BEB0;font-size:14px;margin-top:4px;">@activeEvent.EventDate.ToString("dd MMM yyyy") &middot; @activeEvent.EventLocation</div>
+                </div>
+                <a href="@Url.RouteUrl("customer.myevents.show", new { id = activeEvent.CustomerEventId })" class="btn btn-w-ghost btn-sm-w" style="color:var(--w-sand-300);border-color:var(--w-sand-500);">View event</a>
+            </div>
+            @if (budget > 0)
+            {
+                <div class="mt-3">
+                    <div class="d-flex justify-content-between align-items-center mb-1" style="font-size:13.5px;color:#A8BEB0;">
+                        <span>Budget: SAR @eventSpent.ToString("N0") of @budget.ToString("N0") used</span>
+                        <span @(overBudget ? "style=\"color:var(--w-danger);\"" : "")>@pct.ToString("F0")%</span>
+                    </div>
+                    <div style="height:8px;background:rgba(255,255,255,.12);border-radius:var(--r-pill);overflow:hidden;">
+                        <div style="width:@pct.ToString("F1")%;height:8px;background:@(overBudget ? "var(--w-danger)" : "var(--w-sand-400)");border-radius:var(--r-pill);transition:width .3s;"></div>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+<div class="page-pad">
+    @await Html.PartialAsync("~/Views/partials/_flash.cshtml")
+
+    <div class="discover-greeting">
+        <h1 class="h-pg">@greeting, @customer.FirstName</h1>
+        <p class="muted mt-2 mb-0" style="font-size:16px;">Here are some providers we think you'll love.</p>
+    </div>
+
+    <div class="card-w mb-5" style="padding:20px 24px;">
+        <form method="GET" action="@Url.RouteUrl("providers.index")" class="d-flex gap-3 align-items-end flex-wrap">
+            <div class="flex-grow-1">
+                <label class="lbl d-block mb-2" for="ds-svc">Service</label>
+                <select name="service_id" id="ds-svc" class="inp">
+                    <option value="">Any service</option>
+                    @foreach (var svc in services)
+                    {
+                        <option value="@svc.ServiceId" @(fServiceId == svc.ServiceId.ToString() ? "selected" : "")>@svc.ServiceName</option>
+                    }
+                </select>
+            </div>
+            <div class="flex-grow-1">
+                <label class="lbl d-block mb-2" for="ds-city">City</label>
+                <select name="city" id="ds-city" class="inp">
+                    <option value="">Any city</option>
+                    @foreach (var c in cities)
+                    {
+                        <option value="@c" @(ViewBag.City as string == c ? "selected" : "")>@c</option>
+                    }
+                </select>
+            </div>
+            <div>
+                <label class="lbl d-block mb-2" for="ds-date">Event date</label>
+                <input type="date" name="event_date" id="ds-date" class="inp" value="@(activeEvent != null ? activeEvent.EventDate.ToString("yyyy-MM-dd") : "")" min="@DateTime.Today.ToString("yyyy-MM-dd")">
+            </div>
+            <button type="submit" class="btn btn-w"><i class="bi bi-search me-2"></i>Search</button>
+        </form>
+    </div>
+
+    <div class="d-flex gap-2 flex-wrap mb-4">
+        <a href="@Url.RouteUrl("providers.discover")" class="chip btn-sm-w @(fServiceId == null ? "chip-on" : "")">All</a>
+        @foreach (var svc in services)
+        {
+            <a href="@Url.RouteUrl("providers.discover", new { service_id = svc.ServiceId })" class="chip btn-sm-w @(fServiceId == svc.ServiceId.ToString() ? "chip-on" : "")">@svc.ServiceName</a>
+        }
+    </div>
+
+    @if (!recommended.Any())
+    {
+        <div class="card-w text-center" style="padding:70px 40px;">
+            @await Html.PartialAsync("~/Views/components/_empty-search.cshtml")
+            <h2 class="h-sec mt-4">No recommendations yet</h2>
+            <p class="lead-w mt-3" style="max-width:420px;margin:0 auto;">We'll suggest providers as you book and browse. Try searching for a service above.</p>
+        </div>
+    }
+    else
+    {
+        <div class="row g-4">
+            @foreach (var ps in recommended)
+            {
+                ViewContext.ViewData["ps"] = ps;
+                ViewContext.ViewData["layout"] = "stack";
+                ViewContext.ViewData["date"] = activeEvent != null ? (DateOnly?)activeEvent.EventDate : null;
+                ViewContext.ViewData["nextFree"] = ViewBag.NextFree;
+                <div class="col-sm-6 col-lg-4">@await Html.PartialAsync("~/Views/public/providers/_offering-card.cshtml")</div>
+            }
+        </div>
+        <div class="mt-5 text-center">
+            <a href="@Url.RouteUrl("providers.index", !string.IsNullOrEmpty(fServiceId) ? (object)new { service_id = fServiceId } : new { })" class="btn btn-w-ghost">Browse all providers <i class="bi bi-arrow-right ms-1"></i></a>
+        </div>
+    }
+</div>

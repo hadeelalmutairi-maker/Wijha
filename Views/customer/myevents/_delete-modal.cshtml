@@ -1,0 +1,31 @@
+@using Wijha.Models
+@model CustomerEvent
+@{
+    int bookingsCount = Model.BookingsCount ?? (Model.Bookings?.Count ?? 0);
+}
+<div class="modal fade" id="delete-event-@Model.MyEventId" tabindex="-1">
+    <div class="modal-dialog"><div class="modal-content" style="border-radius:var(--r-xl);border:0;">
+        <div class="modal-body" style="padding:28px;">
+            <h2 class="h-sec mb-3">Delete @Model.EventName?</h2>
+            @if (bookingsCount > 0)
+            {
+                <p class="mb-0" style="font-size:14.5px;color:var(--w-danger);">This event has @bookingsCount booking@(bookingsCount == 1 ? "" : "s") under it. Cancel or move those bookings first. Events with bookings cannot be deleted.</p>
+            }
+            else
+            {
+                <p class="muted mb-0" style="font-size:14.5px;">This permanently deletes the event. This cannot be undone.</p>
+            }
+        </div>
+        <div class="modal-foot d-flex gap-2">
+            <button type="button" class="btn btn-w-ghost flex-grow-1" data-bs-dismiss="modal">Cancel</button>
+            @if (bookingsCount == 0)
+            {
+                <form method="post" action="@Url.RouteUrl("customer.myevents.destroy", new { id = Model.MyEventId })" class="flex-grow-1">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="_method" value="DELETE">
+                    <button type="submit" class="btn btn-w-danger-fill flex-grow-1" style="width:100%;">Delete event</button>
+                </form>
+            }
+        </div>
+    </div></div>
+</div>

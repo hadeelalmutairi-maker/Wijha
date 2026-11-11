@@ -1,0 +1,35 @@
+@using Wijha.Support.Http
+@{
+    var status = Flash.Get<string>(ViewContext.HttpContext, "status");
+    var statusError = Flash.Get<string>(ViewContext.HttpContext, "status_error");
+    var loginError = Flash.Get<string>(ViewContext.HttpContext, "login_error");
+    var resetError = Flash.Get<string>(ViewContext.HttpContext, "reset_error");
+}
+@if (status != null)
+{
+    <div class="alert-w a-ok mb-4">
+        <i class="bi bi-check-circle-fill" style="font-size:18px;"></i>
+        <div>@status</div>
+    </div>
+}
+@if (statusError != null)
+{
+    <div class="alert-w a-err mb-4">
+        <i class="bi bi-exclamation-circle-fill" style="font-size:18px;"></i>
+        <div>@statusError</div>
+    </div>
+}
+@if (loginError != null)
+{
+    <div class="alert-w a-err mb-4">
+        <i class="bi bi-exclamation-circle-fill" style="font-size:18px;"></i>
+        <div><strong>We could not sign you in.</strong><br>@loginError</div>
+    </div>
+}
+@if (resetError != null)
+{
+    <div class="alert-w a-err mb-4">
+        <i class="bi bi-exclamation-circle-fill" style="font-size:18px;"></i>
+        <div>@resetError</div>
+    </div>
+}

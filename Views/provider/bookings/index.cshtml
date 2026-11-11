@@ -1,0 +1,272 @@
+@using Wijha.Models
+@using Wijha.Support.Http
+@using Wijha.Support
+@{
+    Layout = "~/Views/layouts/_provider.cshtml";
+    ViewBag.Title = "Booking requests | Wijha";
+    var provider = (ServiceProvider)ViewBag.Provider;
+    var bookings = (LengthAwarePaginator<Booking>)ViewBag.Bookings;
+    var kpis = (Dictionary<string, object>)ViewBag.Kpis;
+    var counts = (Dictionary<string, int>)ViewBag.Counts;
+    var ranges = (Dictionary<string, string>)ViewBag.Ranges;
+    var slotHints = (Dictionary<int, Dictionary<string, string>>)ViewBag.SlotHints ?? new();
+    string status = ViewBag.Status ?? "Pending";
+    string sort = ViewBag.Sort ?? "newest";
+    string? range = ViewBag.Range as string;
+    DateTime? from = ViewBag.From as DateTime?;
+    DateTime? to = ViewBag.To as DateTime?;
+    bool isCustom = range == "custom" || (from.HasValue || to.HasValue);
+    bool hasDateFilter = !string.IsNullOrEmpty(range) || from.HasValue || to.HasValue;
+    var errors = new ErrorBag(ViewContext);
+    var statusMap = new Dictionary<string, string> { ["Pending"] = "b-warn", ["Accepted"] = "b-ok", ["Rejected"] = "b-err", ["Completed"] = "b-grey", ["Cancelled"] = "b-err" };
+    var statusIcon = new Dictionary<string, string> { ["Pending"] = "bi-hourglass-split", ["Accepted"] = "bi-check-circle-fill", ["Rejected"] = "bi-x-circle-fill", ["Completed"] = "bi-check-all", ["Cancelled"] = "bi-x-circle-fill" };
+}
+<div class="page-pad">
+    @await Html.PartialAsync("~/Views/partials/_flash.cshtml")
+    @if (errors.HasAny(new[] { "rejection_reason", "message_text", "action" }))
+    {
+        <div class="alert-w a-err mb-4">
+            <i class="bi bi-exclamation-circle-fill" style="font-size:18px;"></i>
+            <div><strong>Your response wasn't saved.</strong> @(errors.First("rejection_reason") ?? errors.First("message_text") ?? errors.First("action"))</div>
+        </div>
+    }
+
+    <div class="d-flex justify-content-between align-items-end mb-4 flex-wrap gap-3">
+        <div>
+            <div class="lbl">@provider.BusinessName &middot; @provider.City</div>
+            <h1 class="h-pg mt-2 mb-0">Booking requests</h1>
+        </div>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            @if (provider.IsApproved())
+            {
+                <span class="badge-w b-ok"><i class="bi bi-patch-check-fill"></i> Approved provider</span>
+            }
+            else
+            {
+                <span class="badge-w b-warn">@provider.ApprovalStatus</span>
+            }
+            @if (provider.SubscriptionEndDate.HasValue)
+            {
+                <span class="badge-w b-gold">Subscription until @provider.SubscriptionEndDate.Value.ToString("dd MMM yyyy")</span>
+            }
+        </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-lg-3"><div class="kpi">
+            <div class="d-flex justify-content-between align-items-start">
+                <div><div class="lbl">Awaiting your reply</div><div class="n mt-2">@kpis["pending"]</div></div>
+                <i class="bi bi-hourglass-split" style="font-size:22px;color:var(--w-sand-400);"></i>
+            </div>
+            <div class="muted mt-2" style="font-size:13px;">@(kpis.ContainsKey("oldest_waiting") && kpis["oldest_waiting"] != null ? "Oldest waiting " + kpis["oldest_waiting"] : "All caught up")</div>
+        </div></div>
+        <div class="col-6 col-lg-3"><div class="kpi">
+            <div class="d-flex justify-content-between align-items-start">
+                <div><div class="lbl">Confirmed this month</div><div class="n mt-2">@kpis["confirmed_month"]</div></div>
+                <i class="bi bi-calendar-check" style="font-size:22px;color:var(--w-green-600);"></i>
+            </div>
+            <div class="muted mt-2" style="font-size:13px;">SAR @(((decimal)kpis["confirmed_month_value"]).ToString("N0")) booked</div>
+        </div></div>
+        <div class="col-6 col-lg-3"><div class="kpi">
+            <div class="d-flex justify-content-between align-items-start">
+                <div><div class="lbl">Acceptance rate</div><div class="n mt-2">@(kpis["acceptance_rate"] != null ? kpis["acceptance_rate"] + "%" : "N/A")</div></div>
+                <i class="bi bi-graph-up" style="font-size:22px;color:var(--w-green-600);"></i>
+            </div>
+            <div class="muted mt-2" style="font-size:13px;">Last 30 days</div>
+        </div></div>
+        <div class="col-6 col-lg-3"><div class="kpi">
+            <div class="d-flex justify-content-between align-items-start">
+                <div><div class="lbl">Average rating</div><div class="n mt-2">@(((decimal)(ViewBag.AvgRating ?? 0m)).ToString("F1"))</div></div>
+                <i class="bi bi-star-fill" style="font-size:22px;color:var(--w-sand-400);"></i>
+            </div>
+            <div class="muted mt-2" style="font-size:13px;"><a href="@Url.RouteUrl("provider.reviews.index")" style="color:inherit;">@ViewBag.TotalReviews reviews</a></div>
+        </div></div>
+    </div>
+
+    <div class="card-w mb-3" style="padding:18px 20px;">
+        <form method="get" action="@Url.RouteUrl("provider.bookings.index")" id="date-filter" class="date-filter">
+            <input type="hidden" name="status" value="@status">
+            @if (sort == "oldest") { <input type="hidden" name="sort" value="oldest"> }
+            <div class="date-filter-field">
+                <label class="lbl d-block mb-2" for="range">Service date</label>
+                <div class="inp-icon"><i class="bi bi-calendar3"></i>
+                    <select name="range" id="range" class="inp">
+                        <option value="" @(string.IsNullOrEmpty(range) ? "selected" : "")>All dates</option>
+                        @foreach (var kv in ranges)
+                        {
+                            <option value="@kv.Key" @(range == kv.Key ? "selected" : "")>@kv.Value</option>
+                        }
+                        <option value="custom" @(isCustom ? "selected" : "")>Custom range&hellip;</option>
+                    </select></div>
+            </div>
+            <div class="date-filter-custom @(isCustom ? "" : "d-none")" id="custom-range">
+                <div class="date-filter-field">
+                    <label class="lbl d-block mb-2" for="from">From</label>
+                    <input type="date" name="from" id="from" class="inp" value="@(isCustom ? from?.ToString("yyyy-MM-dd") : "")" @(!isCustom ? "disabled" : "")>
+                </div>
+                <div class="date-filter-field">
+                    <label class="lbl d-block mb-2" for="to">To</label>
+                    <input type="date" name="to" id="to" class="inp" value="@(isCustom ? to?.ToString("yyyy-MM-dd") : "")" min="@(isCustom ? from?.ToString("yyyy-MM-dd") : "")" @(!isCustom ? "disabled" : "")>
+                </div>
+                <button type="submit" class="btn btn-w btn-sm-w date-filter-btn">Apply</button>
+            </div>
+            @if (hasDateFilter)
+            {
+                <a href="@Url.RouteUrl("provider.bookings.index", new { status, sort = sort == "oldest" ? "oldest" : null })" class="btn btn-w-ghost btn-sm-w date-filter-btn">Clear dates</a>
+            }
+        </form>
+        @if (hasDateFilter)
+        {
+            <div class="muted mt-3" style="font-size:13px;"><i class="bi bi-funnel me-1"></i>
+                Showing service dates @(from.HasValue ? from.Value.ToString("dd MMM yyyy") : "from the start") &ndash; @(to.HasValue ? to.Value.ToString("dd MMM yyyy") : "onwards")</div>
+        }
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center gap-2 mb-3 flex-wrap">
+        <div class="d-flex gap-2 flex-wrap">
+            @foreach (var kv in counts)
+            {
+                <a href="@Url.RouteUrl("provider.bookings.index", new { status = kv.Key, sort = sort == "oldest" ? "oldest" : null })"
+                   class="chip btn-sm-w @(status == kv.Key ? "chip-on" : "")">@(kv.Key == "Cancelled" ? "Cancelled by customer" : kv.Key) (@kv.Value)</a>
+            }
+        </div>
+        <a href="@Url.RouteUrl("provider.bookings.index", new { status, sort = sort == "oldest" ? null : "oldest" })"
+           class="chip btn-sm-w"><i class="bi bi-arrow-down-up"></i> @(sort == "oldest" ? "Oldest first" : "Newest first")</a>
+    </div>
+
+    @if (bookings.Items.Any())
+    {
+        bool isFirst2 = true;
+        @foreach (var booking in bookings.Items)
+        {
+            var pay = booking.PaymentState();
+            int custIdMod = booking.CustomerId % 4;
+            string[] avatarColors = { "#D8BD9E", "#C8D1CC", "#E8DCCB", "#CFD9D2" };
+            <div class="req @(booking.BookingStatus == "Pending" && isFirst2 ? "sel" : "")">
+                <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+                    <div class="d-flex gap-3" style="min-width:0;flex:1 1 380px;">
+                        <div class="av flex-shrink-0" style="background:@avatarColors[custIdMod];">@(booking.Customer?.FirstName?[0].ToString().ToUpper())@(booking.Customer?.LastName?[0].ToString().ToUpper())</div>
+                        <div style="min-width:0;">
+                            <div class="d-flex align-items-center gap-2 flex-wrap">
+                                <h3 class="h-card mb-0">@booking.ProviderService?.OfferingTitle</h3>
+                                <span class="badge-w @statusMap[booking.BookingStatus]"><i class="bi @statusIcon[booking.BookingStatus]"></i> @booking.BookingStatus</span>
+                            </div>
+                            <div class="muted mt-1" style="font-size:13.5px;">@booking.Customer?.FirstName @booking.Customer?.LastName &middot; @booking.Reference &middot; requested @booking.BookingDate.ToString("dd MMM")</div>
+                            <div class="d-flex gap-3 gap-md-4 mt-3 flex-wrap" style="font-size:14px;color:var(--w-green-600);">
+                                <span><i class="bi bi-calendar3 me-2"></i>@booking.ServiceDate.ToString("dd MMM yyyy") &middot; @booking.ServiceTime.ToString("HH:mm")</span>
+                                <span class="text-truncate" style="max-width:260px;"><i class="bi bi-geo-alt me-2"></i>@booking.VenueAddress</span>
+                                @if (booking.GuestCount.HasValue)
+                                {
+                                    <span><i class="bi bi-people me-2"></i>@booking.GuestCount guests</span>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                    <div class="text-md-end flex-shrink-0">
+                        <div class="price" style="font-size:24px;">SAR @booking.AgreedPrice.ToString("N0")</div>
+                        <div class="muted" style="font-size:13px;">Qty @booking.Quantity &middot; @booking.ProviderService?.PriceUnit?.ToLower()</div>
+                        <div class="d-flex gap-2 mt-3 flex-wrap justify-content-md-end">
+                            @if (booking.BookingStatus == "Pending")
+                            {
+                                <button type="button" class="btn btn-w-danger btn-sm-w" data-bs-toggle="modal" data-bs-target="#reject-@booking.BookingId">Reject</button>
+                                <a href="@Url.RouteUrl("provider.bookings.show", new { id = booking.BookingId })" class="btn btn-w-ghost btn-sm-w">View details</a>
+                                <button type="button" class="btn btn-w btn-sm-w" data-bs-toggle="modal" data-bs-target="#accept-@booking.BookingId">Accept</button>
+                            }
+                            else
+                            {
+                                @if (booking.BookingStatus == "Accepted")
+                                {
+                                    <span class="badge-w @pay["badge"]" style="align-self:center;">@pay["label"]</span>
+                                }
+                                <a href="@Url.RouteUrl("provider.bookings.show", new { id = booking.BookingId })" class="btn btn-w-ghost btn-sm-w">View details</a>
+                            }
+                        </div>
+                    </div>
+                </div>
+
+                @if (slotHints.ContainsKey(booking.BookingId))
+                {
+                    var hint = slotHints[booking.BookingId];
+                    string hintClass = hint["type"] == "info" ? "a-info" : "a-err";
+                    string hintIcon = hint["type"] == "info" ? "bi-info-circle-fill" : "bi-exclamation-triangle-fill";
+                    <div class="alert-w @hintClass mt-3" style="font-size:13.5px;padding:12px 16px;">
+                        <i class="bi @hintIcon" style="font-size:16px;"></i>
+                        <div>@hint["text"]
+                            @if (hint["type"] != "info") { <a href="@Url.RouteUrl("provider.availability.index", new { month = booking.ServiceDate.ToString("yyyy-MM"), date = booking.ServiceDate.ToString("yyyy-MM-dd") })" style="color:inherit;font-weight:700;">Open schedule</a> }
+                        </div>
+                    </div>
+                }
+                else if (booking.BookingStatus == "Rejected" && booking.RejectionReason != null)
+                {
+                    <div class="alert-w a-err mt-3" style="font-size:13.5px;padding:12px 16px;">
+                        <i class="bi bi-x-circle-fill" style="font-size:16px;"></i><div>@booking.RejectionReason</div>
+                    </div>
+                }
+            </div>
+            isFirst2 = false;
+
+            if (booking.BookingStatus == "Pending")
+            {
+                @await Html.PartialAsync("~/Views/provider/bookings/_respond-modals.cshtml", booking)
+            }
+        }
+    }
+    else
+    {
+        <div class="card-w text-center" style="padding:64px 30px;">
+            @await Html.PartialAsync("~/Views/components/_empty-inbox.cshtml")
+            @if (status == "Pending" && !hasDateFilter)
+            {
+                <h2 class="h-sec mt-4">No requests waiting</h2>
+                <p class="lead-w mt-3 mb-0" style="max-width:520px;margin:0 auto;">You have replied to everything. New requests appear here the moment a customer books one of your services.</p>
+                <div class="d-flex gap-2 justify-content-center flex-wrap mt-4">
+                    <a href="@Url.RouteUrl("provider.availability.index")" class="chip btn-sm-w text-decoration-none"><i class="bi bi-calendar-plus"></i> Open more dates to get more requests</a>
+                    <a href="@Url.RouteUrl("provider.services.index")" class="chip btn-sm-w text-decoration-none"><i class="bi bi-images"></i> Add photos to your portfolio</a>
+                </div>
+                <div class="d-flex gap-2 justify-content-center flex-wrap mt-4">
+                    <a href="@Url.RouteUrl("provider.availability.index")" class="btn btn-w">Manage availability</a>
+                    <a href="@Url.RouteUrl("provider.bookings.confirmed")" class="btn btn-w-ghost">View confirmed bookings</a>
+                </div>
+            }
+            else
+            {
+                <p class="lead-w mt-4 mb-0">No bookings match these filters.</p>
+            }
+        </div>
+    }
+
+    <div class="mt-4">@Html.Raw(bookings.Links())</div>
+</div>
+
+@await Html.PartialAsync("~/Views/provider/bookings/_respond-script.cshtml")
+
+@section scripts {
+<script>
+(function () {
+    const form = document.getElementById('date-filter');
+    if (!form) return;
+    const rangeEl = document.getElementById('range');
+    const custom = document.getElementById('custom-range');
+    const from = document.getElementById('from');
+    const to = document.getElementById('to');
+
+    rangeEl.addEventListener('change', function () {
+        const isCustom = rangeEl.value === 'custom';
+        custom.classList.toggle('d-none', !isCustom);
+        from.disabled = to.disabled = !isCustom;
+        if (isCustom) { from.focus(); return; }
+        form.submit();
+    });
+    from.addEventListener('change', function () {
+        to.min = from.value;
+        if (to.value && from.value && to.value < from.value) to.value = from.value;
+    });
+    form.addEventListener('submit', function (e) {
+        if (rangeEl.value === 'custom' && !from.value && !to.value) {
+            e.preventDefault();
+            from.focus();
+        }
+    });
+})();
+</script>
+}

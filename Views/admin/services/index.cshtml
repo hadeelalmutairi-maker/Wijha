@@ -1,0 +1,181 @@
+@using Wijha.Models
+@using Wijha.Support.Http
+@{
+    Layout = "~/Views/layouts/_admin.cshtml";
+    ViewBag.Title = "Service catalogue | Admin | Wijha";
+    var services = (IEnumerable<Service>)ViewBag.Services;
+    var counts = (Dictionary<string, int>)ViewBag.Counts;
+    string q = ViewBag.Q as string ?? "";
+    string state = ViewBag.State as string ?? "";
+    string chipKey = state == "active" ? "Active" : (state == "hidden" ? "Hidden" : "All");
+    string? failedEdit = Flash.Old(ViewContext.HttpContext, "_service_id");
+    var errors = new ErrorBag(ViewContext);
+}
+<div class="page-pad">
+    @await Html.PartialAsync("~/Views/partials/_flash.cshtml")
+    @if (errors.HasAny())
+    {
+        <div class="alert-w a-err mb-3"><i class="bi bi-exclamation-circle-fill"></i><div><strong>Nothing was saved.</strong> @errors.FirstAny()</div></div>
+    }
+
+    @await Html.PartialAsync("~/Views/components/_admin-head.cshtml", (object)new {
+        eyebrow = "Manage",
+        title = "Service catalogue",
+        subtitle = "The service types providers can list under. Hidden types disappear from browsing and booking.",
+        actions = new[] {
+            new { href = "#", cls = "btn-w", icon = "plus-lg", label = "Add service", dataBsToggle = "modal", dataBsTarget = "#add-service" }
+        }
+    })
+
+    <form method="GET" action="@Url.RouteUrl("admin.services.index")" class="a-filters">
+        <input type="hidden" name="state" value="@state">
+        <div class="date-filter">
+            <div class="date-filter-field f-search">
+                <label class="lbl d-block mb-2" for="q">Search</label>
+                <div class="inp-icon"><i class="bi bi-search"></i>
+                    <input type="search" name="q" id="q" class="inp" value="@q" placeholder="Service name or description"></div>
+            </div>
+            <button type="submit" class="btn btn-w btn-sm-w date-filter-btn">Search</button>
+            @if (q != "")
+            {
+                <a href="@Url.RouteUrl("admin.services.index", !string.IsNullOrEmpty(state) ? (object)new { state } : new { })" class="btn btn-w-ghost btn-sm-w date-filter-btn">Clear</a>
+            }
+        </div>
+    </form>
+
+    <div class="d-flex gap-2 flex-wrap mb-3">
+        @foreach (var kv in counts)
+        {
+            string stateParam = kv.Key == "All" ? "" : kv.Key.ToLower();
+            <a href="@Url.RouteUrl("admin.services.index", string.IsNullOrEmpty(q) && string.IsNullOrEmpty(stateParam) ? (object)new { } : new { q = string.IsNullOrEmpty(q) ? null : q, state = string.IsNullOrEmpty(stateParam) ? null : stateParam })"
+               class="chip btn-sm-w @(chipKey == kv.Key ? "chip-on" : "")">@kv.Key (@kv.Value)</a>
+        }
+    </div>
+
+    <div class="a-table-wrap">
+        <table class="a-table" style="min-width:820px;">
+            <thead><tr><th>Service</th><th>Description</th><th class="num">Offerings</th><th>Status</th><th class="num">Actions</th></tr></thead>
+            <tbody>
+            @if (services.Any())
+            {
+                @foreach (var service in services)
+                {
+                    int offeringCount = service.ProviderServicesCount ?? 0;
+                    string descTrunc = service.ServiceDescription?.Length > 110 ? service.ServiceDescription.Substring(0, 110) + "…" : (service.ServiceDescription ?? "No description");
+                    <tr>
+                        <td><div class="d-flex align-items-center gap-2">
+                            @await Html.PartialAsync("~/Views/components/_service-icon.cshtml", (object)new { name = service.ServiceName, size = 30 })
+                            <strong>@service.ServiceName</strong>
+                        </div></td>
+                        <td class="sub" style="max-width:360px;">@descTrunc</td>
+                        <td class="num">@offeringCount</td>
+                        <td><span class="badge-w @(service.IsActive ? "b-ok" : "b-grey")">@(service.IsActive ? "Active" : "Hidden")</span></td>
+                        <td><div class="a-actions">
+                            <button type="button" class="btn btn-w-ghost btn-sm-w" data-bs-toggle="modal" data-bs-target="#edit-service-@service.ServiceId">Edit</button>
+                            <form method="POST" action="@Url.RouteUrl("admin.services.update", new { id = service.ServiceId })"
+                                  data-confirm="@(service.IsActive ? $"Customers will no longer see {service.ServiceName} when browsing or booking. Existing bookings are not affected." : $"{service.ServiceName} becomes visible again when customers browse and book.")"
+                                  data-confirm-title="@(service.IsActive ? "Hide this service?" : "Show this service?")"
+                                  data-confirm-ok="@(service.IsActive ? "Hide" : "Show")"
+                                  data-confirm-icon="@(service.IsActive ? "bi-eye-slash" : "bi-eye")">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="_method" value="PUT">
+                                <input type="hidden" name="service_name" value="@service.ServiceName">
+                                <input type="hidden" name="service_description" value="@service.ServiceDescription">
+                                @if (!service.IsActive) { <input type="hidden" name="is_active" value="1"> }
+                                <button type="submit" class="btn btn-w-ghost btn-sm-w">@(service.IsActive ? "Hide" : "Show")</button>
+                            </form>
+                            @if (offeringCount == 0)
+                            {
+                                <form method="POST" action="@Url.RouteUrl("admin.services.destroy", new { id = service.ServiceId })"
+                                      data-confirm="@service.ServiceName will be permanently removed from the catalogue. This cannot be undone."
+                                      data-confirm-title="Delete this service?" data-confirm-ok="Delete" data-confirm-tone="danger">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="_method" value="DELETE">
+                                    <button type="submit" class="btn btn-w-ghost btn-sm-w" style="color:var(--w-danger);" aria-label="Delete @service.ServiceName"><i class="bi bi-trash"></i></button>
+                                </form>
+                            }
+                        </div></td>
+                    </tr>
+                }
+            }
+            else
+            {
+                <tr><td colspan="5" class="a-empty"><i class="bi bi-tags d-block mb-2" style="font-size:26px;"></i>No services match your search.</td></tr>
+            }
+            </tbody>
+        </table>
+    </div>
+    <p class="a-note mt-3 mb-0"><i class="bi bi-info-circle me-1"></i>A service that providers already offer cannot be deleted. Hide it instead.</p>
+</div>
+
+<div class="modal fade" id="add-service" tabindex="-1" aria-labelledby="add-service-title">
+    <div class="modal-dialog"><div class="modal-content" style="border-radius:var(--r-xl);border:0;">
+        <form method="POST" action="@Url.RouteUrl("admin.services.store")" style="display:flex;flex-direction:column;max-height:85vh;"
+              data-confirm="{service_name} will be added to the catalogue." data-confirm-title="Add this service?" data-confirm-ok="Add service" data-confirm-icon="bi-plus-lg">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="_service_id" value="new">
+            <div class="modal-body" style="padding:28px;overflow-y:auto;">
+                <h2 class="h-sec mb-3" id="add-service-title">Add a service</h2>
+                <div class="field">
+                    <label for="new-name">Service name <span style="color:var(--w-danger);">*</span></label>
+                    <input type="text" name="service_name" id="new-name" class="inp" maxlength="100" required value="@(failedEdit == "new" ? Flash.Old(ViewContext.HttpContext, "service_name") : "")">
+                </div>
+                <div class="field mb-0">
+                    <label for="new-desc">Description</label>
+                    <textarea name="service_description" id="new-desc" class="inp inp-area" rows="3" maxlength="500">@(failedEdit == "new" ? Flash.Old(ViewContext.HttpContext, "service_description") : "")</textarea>
+                </div>
+                <label class="remember-check mt-3">
+                    <input type="checkbox" name="is_active" value="1" checked>
+                    <span class="box"><i class="bi bi-check-lg"></i></span> Active immediately
+                </label>
+            </div>
+            <div class="modal-foot d-flex gap-2">
+                <button type="button" class="btn btn-w-ghost flex-grow-1" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-w flex-grow-1">Add service</button>
+            </div>
+        </form>
+    </div></div>
+</div>
+
+@foreach (var service in services)
+{
+    bool mine = failedEdit == service.ServiceId.ToString();
+    <div class="modal fade" id="edit-service-@service.ServiceId" tabindex="-1" aria-labelledby="edit-title-@service.ServiceId">
+        <div class="modal-dialog"><div class="modal-content" style="border-radius:var(--r-xl);border:0;">
+            <form method="POST" action="@Url.RouteUrl("admin.services.update", new { id = service.ServiceId })" style="display:flex;flex-direction:column;max-height:85vh;"
+                  data-confirm="Changes to @service.ServiceName will show everywhere it appears." data-confirm-title="Save changes?" data-confirm-ok="Save changes" data-confirm-icon="bi-pencil">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="_method" value="PUT">
+                <input type="hidden" name="_service_id" value="@service.ServiceId">
+                <div class="modal-body" style="padding:28px;overflow-y:auto;">
+                    <h2 class="h-sec mb-3" id="edit-title-@service.ServiceId">Edit @service.ServiceName</h2>
+                    <div class="field">
+                        <label for="name-@service.ServiceId">Service name <span style="color:var(--w-danger);">*</span></label>
+                        <input type="text" name="service_name" id="name-@service.ServiceId" class="inp" value="@(mine ? Flash.Old(ViewContext.HttpContext, "service_name") : service.ServiceName)" maxlength="100" required>
+                    </div>
+                    <div class="field mb-0">
+                        <label for="desc-@service.ServiceId">Description</label>
+                        <textarea name="service_description" id="desc-@service.ServiceId" class="inp inp-area" rows="3" maxlength="500">@(mine ? Flash.Old(ViewContext.HttpContext, "service_description") : service.ServiceDescription)</textarea>
+                    </div>
+                    <label class="remember-check mt-3">
+                        <input type="checkbox" name="is_active" value="1" @(service.IsActive ? "checked" : "")>
+                        <span class="box"><i class="bi bi-check-lg"></i></span> Active
+                    </label>
+                </div>
+                <div class="modal-foot d-flex gap-2">
+                    <button type="button" class="btn btn-w-ghost flex-grow-1" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-w flex-grow-1">Save changes</button>
+                </div>
+            </form>
+        </div></div>
+    </div>
+}
+
+@if (errors.HasAny() && failedEdit != null)
+{
+    @section scripts {
+    <script>
+    document.querySelectorAll('.modal[id$="@failedEdit"]').forEach(function (m) { bootstrap.Modal.getOrCreateInstance(m).show(); });
+    </script>
+    }
+}

@@ -1,0 +1,137 @@
+@using Wijha.Models
+@using Wijha.Helpers
+@{
+    Layout = "~/Views/layouts/_provider.cshtml";
+    ViewBag.Title = "My services | Wijha";
+    var providerServices = (IEnumerable<ProviderService>)ViewBag.ProviderServices;
+    var provider = (ServiceProvider)ViewBag.Provider;
+    bool isApproved = provider.IsApproved();
+    string? modalToOpen = ViewBag.ModalToOpen as string;
+    bool hasErrors = ViewBag.HasErrors == true;
+}
+<div class="page-pad">
+    @await Html.PartialAsync("~/Views/partials/_flash.cshtml")
+    <div class="d-flex justify-content-between align-items-end mb-4 flex-wrap gap-3">
+        <h1 class="h-pg">My services</h1>
+        <div class="d-flex gap-2 flex-wrap">
+            <a href="@Url.RouteUrl("provider.categories.index")" class="btn btn-w-ghost"><i class="bi bi-folder2 me-2"></i>Store categories</a>
+            @if (isApproved)
+            {
+                <button type="button" class="btn btn-w" data-bs-toggle="modal" data-bs-target="#service-create"><i class="bi bi-plus-lg me-2"></i>Add service</button>
+            }
+        </div>
+    </div>
+
+    @if (!isApproved)
+    {
+        <div class="alert-w a-info mb-4">
+            <i class="bi bi-info-circle-fill" style="font-size:18px;"></i>
+            <div>Your account must be approved before you can publish services.</div>
+        </div>
+    }
+
+    <div class="row g-3">
+        @if (providerServices.Any())
+        {
+            @foreach (var ps in providerServices)
+            {
+                <div class="col-md-6">
+                    <div class="ocard card-fixed" style="padding:20px;height:215px;">
+                        <div class="card-fixed-body">
+                            <div class="d-flex gap-3">
+                                <div style="width:72px;height:72px;border-radius:var(--r-sm);overflow:hidden;flex:none;">
+                                    @{
+                                        string? thumb = WijhaHelpers.ImageUrl(ps.PortfolioUrl);
+                                    }
+                                    @if (thumb != null)
+                                    {
+                                        <img src="@thumb" alt="@ps.OfferingTitle" style="width:100%;height:100%;object-fit:cover;display:block;">
+                                    }
+                                    else
+                                    {
+                                        @await Html.PartialAsync("~/Views/components/_decor-photo.cshtml", (object)new { seed = ps.ProviderServiceId, height = "100%" })
+                                    }
+                                </div>
+                                <div class="flex-grow-1" style="min-width:0;">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <h3 class="h-card">@ps.OfferingTitle</h3>
+                                        <span class="price flex-shrink-0 ms-2" style="font-size:19px;">SAR @ps.Price.ToString("N0")</span>
+                                    </div>
+                                    <div class="muted mb-2" style="font-size:13px;">@ps.Service?.ServiceName &middot; @ps.PriceUnit@(ps.ServiceCategory != null ? " · " + ps.ServiceCategory.CategoryName : "")</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-fixed-foot d-flex justify-content-between align-items-center">
+                            <span class="badge-w @(ps.IsActive ? "b-ok" : "b-grey")">@(ps.IsActive ? "Active" : "Inactive")</span>
+                            <div class="d-flex gap-2">
+                                <button type="button" class="btn btn-w-ghost btn-sm-w" data-bs-toggle="modal" data-bs-target="#service-edit-@ps.ProviderServiceId">Edit</button>
+                                <form method="post" action="@Url.RouteUrl("provider.services.destroy", new { id = ps.ProviderServiceId })" onsubmit="return confirm('Delete this service?');">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="_method" value="DELETE">
+                                    <button type="submit" class="btn btn-w-light btn-sm-w" style="color:var(--w-danger);">Delete</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal fade" id="service-edit-@ps.ProviderServiceId" tabindex="-1">
+                    <div class="modal-dialog modal-lg modal-dialog-scrollable"><div class="modal-content" style="border-radius:var(--r-xl);border:0;">
+                        <form method="post" action="@Url.RouteUrl("provider.services.update", new { id = ps.ProviderServiceId })" enctype="multipart/form-data" style="display:flex;flex-direction:column;max-height:85vh;">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="_method" value="PUT">
+                            <input type="hidden" name="_modal" value="service-edit-@ps.ProviderServiceId">
+                            <div class="modal-body" style="padding:28px;overflow-y:auto;">
+                                <h2 class="h-sec mb-3">Edit service</h2>
+                                @await Html.PartialAsync("~/Views/provider/services/_form.cshtml", (object)new { service = ps })
+                            </div>
+                            <div class="modal-foot d-flex gap-2">
+                                <button type="button" class="btn btn-w-ghost flex-grow-1" data-bs-dismiss="modal">Cancel</button>
+                                <button type="submit" class="btn btn-w flex-grow-1">Save changes</button>
+                            </div>
+                        </form>
+                    </div></div>
+                </div>
+            }
+        }
+        else
+        {
+            <div class="col-12"><div class="card-w text-center" style="padding:60px;">
+                @await Html.PartialAsync("~/Views/components/_empty-inbox.cshtml")
+                <p class="lead-w mt-4">You have not published a service yet.</p>
+            </div></div>
+        }
+    </div>
+</div>
+
+@if (isApproved)
+{
+    <div class="modal fade" id="service-create" tabindex="-1">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable"><div class="modal-content" style="border-radius:var(--r-xl);border:0;">
+            <form method="post" action="@Url.RouteUrl("provider.services.store")" enctype="multipart/form-data" style="display:flex;flex-direction:column;max-height:85vh;">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="_modal" value="service-create">
+                <div class="modal-body" style="padding:28px;overflow-y:auto;">
+                    <h2 class="h-sec mb-3">Add a service</h2>
+                    @await Html.PartialAsync("~/Views/provider/services/_form.cshtml")
+                </div>
+                <div class="modal-foot d-flex gap-2">
+                    <button type="button" class="btn btn-w-ghost flex-grow-1" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-w flex-grow-1">Publish service</button>
+                </div>
+            </form>
+        </div></div>
+    </div>
+}
+
+@if (hasErrors && modalToOpen != null)
+{
+    @section scripts {
+    <script>
+    document.addEventListener('DOMContentLoaded', function () {
+        var el = document.getElementById(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(modalToOpen)));
+        if (el) { new bootstrap.Modal(el).show(); }
+    });
+    </script>
+    }
+}

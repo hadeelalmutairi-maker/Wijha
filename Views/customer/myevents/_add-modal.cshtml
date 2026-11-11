@@ -1,0 +1,39 @@
+@{
+    var eventTypes = new[] { "Wedding","Engagement","Graduation","Birthday","Baby Shower","Corporate","National Day","Other" };
+}
+<div class="modal fade" id="add-event" tabindex="-1">
+    <div class="modal-dialog"><div class="modal-content" style="border-radius:var(--r-xl);border:0;">
+        <form method="post" action="@Url.RouteUrl("customer.myevents.store")" style="display:flex;flex-direction:column;max-height:85vh;">
+            @Html.AntiForgeryToken()
+            <div class="modal-body" style="padding:28px;overflow-y:auto;">
+                <h2 class="h-sec mb-3">Create your event</h2>
+                <div class="field">
+                    <label for="add_event_name">Event name</label>
+                    <input type="text" name="event_name" id="add_event_name" class="inp" maxlength="150" required placeholder="Alanoud's Wedding">
+                </div>
+                <div class="row g-3">
+                    <div class="col-6"><div class="field">
+                        <label for="add_event_type">Event type</label>
+                        <select name="event_type" id="add_event_type" class="inp" required>
+                            <option value="">Select type</option>
+                            @foreach (var t in eventTypes) { <option value="@t">@t</option> }
+                        </select>
+                    </div></div>
+                    <div class="col-6"><div class="field">
+                        <label for="add_event_date">Event date</label>
+                        <input type="date" name="event_date" id="add_event_date" class="inp" required min="@DateTime.Today.AddDays(1).ToString("yyyy-MM-dd")">
+                    </div></div>
+                </div>
+                <div class="field" style="margin-bottom:0;">
+                    <label for="add_total_budget">Total budget (SAR)</label>
+                    <input type="number" name="total_budget" id="add_total_budget" class="inp" min="0" step="0.01" placeholder="12000">
+                    <div class="help">Wijha warns you when your bookings pass this amount. It never blocks a booking.</div>
+                </div>
+            </div>
+            <div class="modal-foot d-flex gap-2">
+                <button type="button" class="btn btn-w-ghost flex-grow-1" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-w flex-grow-1">Create event</button>
+            </div>
+        </form>
+    </div></div>
+</div>

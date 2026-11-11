@@ -1,0 +1,133 @@
+@using Wijha.Models
+@using Wijha.Support.Http
+@using Wijha.Helpers
+@model Customer
+@{
+    Layout = "~/Views/layouts/_customer.cshtml";
+    ViewBag.Title = "My profile | Wijha";
+    var reviews = (IEnumerable<Review>)ViewBag.Reviews;
+    var errors = new ErrorBag(ViewContext);
+}
+<div class="page-pad" style="max-width:720px;margin:0 auto;">
+    @await Html.PartialAsync("~/Views/partials/_flash.cshtml")
+
+    <div class="card-w text-center mb-4" style="padding:36px 30px;">
+        <div class="d-flex justify-content-center">
+            @await Html.PartialAsync("~/Views/components/_avatar.cshtml", (object)new { url = WijhaHelpers.ImageUrl(Model.ProfileImageUrl), initials = $"{Model.FirstName[0]}{Model.LastName[0]}".ToUpper(), size = 88 })
+        </div>
+        <h1 class="h-pg mt-3 mb-1">@Model.FirstName @Model.LastName</h1>
+        <p class="muted mb-0" style="font-size:14.5px;">@Model.Email &middot; @Model.City</p>
+        <p class="muted mt-1" style="font-size:13px;">Member since @Model.RegistrationDate.ToString("MMMM yyyy")</p>
+    </div>
+
+    <h2 class="h-sec mb-3">Account settings</h2>
+    <form method="post" action="@Url.RouteUrl("customer.profile.update")" enctype="multipart/form-data" class="card-w mb-4" style="padding:30px;">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="_method" value="PUT">
+        <div class="d-flex align-items-center gap-3 mb-4">
+            @await Html.PartialAsync("~/Views/components/_avatar.cshtml", (object)new { url = WijhaHelpers.ImageUrl(Model.ProfileImageUrl), initials = $"{Model.FirstName[0]}{Model.LastName[0]}".ToUpper(), size = 64 })
+            <div class="muted" style="font-size:13.5px;">Current photo</div>
+        </div>
+        <div class="row g-3">
+            <div class="col-md-6"><div class="field">
+                <label for="first_name">First name</label>
+                <input type="text" name="first_name" id="first_name" class="inp @(errors.Has("first_name") ? "inp-err" : "")"
+                       value="@(Flash.Old(ViewContext.HttpContext, "first_name") ?? Model.FirstName)" required minlength="2" maxlength="60">
+                @if (errors.Has("first_name")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("first_name")</div> }
+            </div></div>
+            <div class="col-md-6"><div class="field">
+                <label for="last_name">Last name</label>
+                <input type="text" name="last_name" id="last_name" class="inp @(errors.Has("last_name") ? "inp-err" : "")"
+                       value="@(Flash.Old(ViewContext.HttpContext, "last_name") ?? Model.LastName)" required minlength="2" maxlength="60">
+                @if (errors.Has("last_name")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("last_name")</div> }
+            </div></div>
+        </div>
+
+        <div class="field">
+            <label for="email">Email address</label>
+            <input type="email" name="email" id="email" class="inp @(errors.Has("email") ? "inp-err" : "")"
+                   value="@(Flash.Old(ViewContext.HttpContext, "email") ?? Model.Email)" required maxlength="150">
+            @if (errors.Has("email")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("email")</div> }
+        </div>
+
+        <div class="row g-3">
+            <div class="col-md-6"><div class="field">
+                <label for="phone">Phone number</label>
+                <input type="tel" name="phone" id="phone" class="inp @(errors.Has("phone") ? "inp-err" : "")"
+                       value="@(Flash.Old(ViewContext.HttpContext, "phone") ?? Model.Phone)" required pattern="^(05\d{8}|\+9665\d{8})$">
+                @if (errors.Has("phone")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("phone")</div> }
+            </div></div>
+            <div class="col-md-6"><div class="field">
+                <label for="city">City</label>
+                <input type="text" name="city" id="city" class="inp @(errors.Has("city") ? "inp-err" : "")"
+                       value="@(Flash.Old(ViewContext.HttpContext, "city") ?? Model.City)" required maxlength="60">
+                @if (errors.Has("city")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("city")</div> }
+            </div></div>
+        </div>
+
+        <div class="field">
+            <label for="gender">Gender</label>
+            @{ string selGender = Flash.Old(ViewContext.HttpContext, "gender") ?? Model.Gender ?? ""; }
+            <select name="gender" id="gender" class="inp @(errors.Has("gender") ? "inp-err" : "")">
+                <option value="">Prefer not to say</option>
+                <option value="Male" @(selGender == "Male" ? "selected" : "")>Male</option>
+                <option value="Female" @(selGender == "Female" ? "selected" : "")>Female</option>
+            </select>
+            @if (errors.Has("gender")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("gender")</div> }
+        </div>
+
+        <div class="field" style="margin-bottom:0;">
+            <label for="profile_image">Profile photo</label>
+            <input type="file" name="profile_image" id="profile_image" class="inp @(errors.Has("profile_image") ? "inp-err" : "")" accept="image/png,image/jpeg">
+            @if (errors.Has("profile_image")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("profile_image")</div> }
+        </div>
+
+        <button type="submit" class="btn btn-w btn-lg-w mt-4">Save changes</button>
+    </form>
+
+    <h2 class="h-sec mb-3">My reviews</h2>
+    @if (!reviews.Any())
+    {
+        <div class="card-w text-center" style="padding:40px;">
+            <p class="muted mb-0">You haven't written any reviews yet. Rate a completed booking from your bookings page.</p>
+        </div>
+    }
+    @foreach (var review in reviews)
+    {
+        <div class="card-w mb-3" style="padding:22px;">
+            <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+                <div>
+                    <div style="font-weight:700;font-size:15px;">@review.Booking?.ProviderService?.ServiceProvider?.BusinessName</div>
+                    <div class="muted" style="font-size:13px;">@review.Booking?.ProviderService?.OfferingTitle &middot; @review.ReviewDate.ToString("dd MMM yyyy")</div>
+                </div>
+                <div class="d-flex align-items-center gap-3">
+                    <span style="color:var(--w-sand-400);letter-spacing:2px;">
+                        @for (int i = 0; i < 5; i++) { <i class="bi bi-star@(i < review.Rating ? "-fill" : "")"></i> }
+                    </span>
+                    <button type="button" class="btn btn-w-ghost btn-sm-w" style="color:var(--w-danger);" data-bs-toggle="modal" data-bs-target="#delete-review-@review.ReviewId">Delete</button>
+                </div>
+            </div>
+            @if (review.ReviewText != null)
+            {
+                <p class="mt-3 mb-0" style="font-size:14.5px;line-height:1.6;color:var(--w-green-700);">@review.ReviewText</p>
+            }
+        </div>
+
+        <div class="modal fade" id="delete-review-@review.ReviewId" tabindex="-1">
+            <div class="modal-dialog"><div class="modal-content" style="border-radius:var(--r-xl);border:0;">
+                <form method="post" action="@Url.RouteUrl("customer.reviews.destroy", new { id = review.ReviewId })">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="_method" value="DELETE">
+                    <div class="modal-body" style="padding:28px;">
+                        <h2 class="h-sec mb-3">Delete this review?</h2>
+                        <p class="muted mb-0" style="font-size:14.5px;">Your review for @review.Booking?.ProviderService?.ServiceProvider?.BusinessName will be removed permanently. You can write a new one from your bookings later.</p>
+                    </div>
+                    <div class="modal-foot d-flex gap-2">
+                        <button type="button" class="btn btn-w-ghost flex-grow-1" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-w-danger-fill flex-grow-1">Delete</button>
+                    </div>
+                </form>
+            </div></div>
+        </div>
+    }
+</div>

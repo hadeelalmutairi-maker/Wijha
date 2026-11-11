@@ -1,0 +1,11 @@
+@model dynamic
+@{
+    int step = Model?.step ?? 2;
+    string detailsLabel = Model?.detailsLabel ?? "Your details";
+    var steps = new List<Dictionary<string,string>>
+    {
+        new() { ["label"] = "Account type", ["href"] = Url.RouteUrl("register.type") ?? "" },
+        new() { ["label"] = detailsLabel },
+    };
+}
+@await Html.PartialAsync("~/Views/auth/_steps.cshtml", (object)new { steps, current = step })

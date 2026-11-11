@@ -1,0 +1,131 @@
+@using Wijha.Models
+@{
+    Layout = "~/Views/layouts/_customer.cshtml";
+    var provider = ViewBag.Provider as ServiceProvider;
+    var threads = (IEnumerable<Message>)ViewBag.Threads;
+    var messages = (IEnumerable<Message>)ViewBag.Messages ?? Enumerable.Empty<Message>();
+    ViewBag.Title = provider != null ? $"Chat with {provider.BusinessName} | Wijha" : "Messages | Wijha";
+}
+<div class="d-flex chat-shell">
+    <div class="chat-sidebar" style="overflow:auto;">
+        <h2 class="h-sec mb-3" style="font-size:24px;">Messages</h2>
+        @if (threads.Any())
+        {
+            @foreach (var msg in threads)
+            {
+                bool isOn = provider != null && provider.ServiceProviderId == msg.ServiceProviderId;
+                string initials = msg.ServiceProvider?.BusinessName?.Length >= 2 ? msg.ServiceProvider.BusinessName.Substring(0, 2).ToUpper() : "??";
+                string timeLabel = msg.SentAt.Date == DateTime.Today ? msg.SentAt.ToString("HH:mm") : (msg.SentAt.Date == DateTime.Today.AddDays(-1) ? "Yesterday" : msg.SentAt.ToString("j MMM"));
+                <a href="@Url.RouteUrl("customer.messages.show", new { id = msg.ServiceProviderId })" class="chat-thread @(isOn ? "chat-thread-on" : "")">
+                    <div class="av @(isOn ? "" : "av-soft")">@initials</div>
+                    <div class="flex-grow-1" style="min-width:0;">
+                        <div class="d-flex justify-content-between gap-2">
+                            <div class="chat-thread-name">@msg.ServiceProvider?.BusinessName</div>
+                            <span class="muted flex-none" style="font-size:12px;">@timeLabel</span>
+                        </div>
+                        <div class="muted chat-thread-last">@(msg.SenderType == "Customer" ? "You: " : "")@msg.MessageText</div>
+                    </div>
+                </a>
+            }
+        }
+        else
+        {
+            <p class="muted">No conversations yet.</p>
+        }
+    </div>
+
+    @if (provider != null)
+    {
+        <div class="flex-grow-1 d-flex flex-column" style="min-width:0;">
+            <div class="chat-head">
+                <div class="d-flex gap-3 align-items-center">
+                    <div class="av">@(provider.BusinessName?.Length >= 2 ? provider.BusinessName.Substring(0, 2).ToUpper() : "??")</div>
+                    <div><div style="font-weight:700;font-size:16px;">@provider.BusinessName</div>
+                        <div class="muted" style="font-size:13px;">@provider.City</div></div>
+                </div>
+                <div class="d-flex gap-2">
+                    <a href="@Url.RouteUrl("providers.show", new { id = provider.ServiceProviderId })" class="btn btn-w-ghost btn-sm-w">View profile</a>
+                    @if (messages.Any())
+                    {
+                        <button type="button" class="btn btn-w-ghost btn-sm-w" style="color:var(--w-danger);" data-bs-toggle="modal" data-bs-target="#clear-chat">Clear chat</button>
+                    }
+                </div>
+            </div>
+
+            <div class="flex-grow-1 chat-body" id="chat-body">
+                @{
+                    string? lastDay = null;
+                }
+                @if (messages.Any())
+                {
+                    @foreach (var message in messages)
+                    {
+                        string dateStr = message.SentAt.ToString("yyyy-MM-dd");
+                        if (dateStr != lastDay)
+                        {
+                            string dayLabel = message.SentAt.Date == DateTime.Today ? "Today" : (message.SentAt.Date == DateTime.Today.AddDays(-1) ? "Yesterday" : message.SentAt.ToString("j MMMM yyyy"));
+                            <div class="chat-day"><span>@dayLabel</span></div>
+                            lastDay = dateStr;
+                        }
+                        bool isMine = message.SenderType == "Customer";
+                        <div class="mb-3" style="display:flex;flex-direction:column;align-items:@(isMine ? "flex-end" : "flex-start");">
+                            <div class="msg @(isMine ? "msg-out" : "msg-in")">@message.MessageText</div>
+                            <div class="msg-time">@(isMine ? "You" : provider.BusinessName) &middot; @message.SentAt.ToString("HH:mm")</div>
+                        </div>
+                    }
+                }
+                else
+                {
+                    <p class="muted text-center">Say hello to start the conversation.</p>
+                }
+            </div>
+
+            <form method="post" action="@Url.RouteUrl("customer.messages.store", new { id = provider.ServiceProviderId })" class="chat-compose">
+                @Html.AntiForgeryToken()
+                <input type="text" name="message_text" class="inp flex-grow-1" maxlength="1000" placeholder="Write a message to @provider.BusinessName" required>
+                <button type="submit" class="btn btn-w"><i class="bi bi-send-fill"></i></button>
+            </form>
+        </div>
+
+        <div class="modal fade" id="clear-chat" tabindex="-1">
+            <div class="modal-dialog"><div class="modal-content" style="border-radius:var(--r-xl);border:0;">
+                <form method="post" action="@Url.RouteUrl("customer.messages.clear", new { id = provider.ServiceProviderId })">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="_method" value="DELETE">
+                    <div class="modal-body" style="padding:28px;">
+                        <h2 class="h-sec mb-3">Clear this conversation?</h2>
+                        <div class="alert-w a-err">
+                            <i class="bi bi-exclamation-triangle-fill" style="font-size:18px;"></i>
+                            <div>This deletes every message with @provider.BusinessName <strong>for both of you</strong>. The provider will no longer see this conversation either. This cannot be undone.</div>
+                        </div>
+                    </div>
+                    <div class="modal-foot d-flex gap-2">
+                        <button type="button" class="btn btn-w-ghost flex-grow-1" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-w-danger-fill flex-grow-1">Clear chat</button>
+                    </div>
+                </form>
+            </div></div>
+        </div>
+    }
+    else
+    {
+        <div class="flex-grow-1 d-flex flex-column align-items-center justify-content-center text-center">
+            @if (!threads.Any())
+            {
+                @await Html.PartialAsync("~/Views/components/_empty-inbox.cshtml")
+                <p class="lead-w mt-4">No conversations yet. Message a provider from their profile to get started.</p>
+            }
+            else
+            {
+                <i class="bi bi-chat-square-text" style="font-size:40px;color:var(--w-green-400);"></i>
+                <p class="muted mt-3">Open a conversation on the left to view messages.</p>
+            }
+        </div>
+    }
+</div>
+
+@section scripts {
+<script>
+(function () { const body = document.getElementById('chat-body'); if (body) body.scrollTop = body.scrollHeight; })();
+</script>
+}

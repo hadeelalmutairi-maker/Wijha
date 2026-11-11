@@ -1,0 +1,31 @@
+@{
+    Layout = "~/Views/layouts/_auth.cshtml";
+    ViewBag.Title = "Forgot password | Wijha";
+    string guard = ViewBag.Guard ?? "customer";
+}
+@using Wijha.Support.Http
+@{ var errors = new ErrorBag(ViewContext); }
+
+@section quote {
+    <div class="auth-quote">It happens.<br>Let us get you<br>back in.</div>
+}
+
+<a href="@Url.RouteUrl("login")" class="muted d-inline-flex align-items-center gap-2 mb-4" style="font-size:14.5px;font-weight:700;text-decoration:none;">
+    <i class="bi bi-arrow-left"></i> Back to log in</a>
+
+@await Html.PartialAsync("~/Views/auth/password/_steps.cshtml", (object)new { current = 1, guard })
+
+<h1 class="h-sec mb-2">Forgot your password?</h1>
+<p class="muted mb-5" style="font-size:15.5px;">Enter the email you signed up with and we will send you a 6-digit reset code.</p>
+
+<form method="post" action="@Url.RouteUrl("password.forgot.submit", new { guard })">
+    @Html.AntiForgeryToken()
+    <div class="field">
+        <label for="email">Email address</label>
+        <div class="inp-icon"><i class="bi bi-envelope"></i>
+            <input type="email" name="email" id="email" class="inp @(errors.Has("email") ? "inp-err" : "")"
+                   value="@Flash.Old(ViewContext.HttpContext, "email")" placeholder="you@example.com" required></div>
+        @if (errors.Has("email")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("email")</div> }
+    </div>
+    <button type="submit" class="btn btn-w btn-lg-w btn-block mt-2">Send reset code</button>
+</form>

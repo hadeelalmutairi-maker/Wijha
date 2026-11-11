@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+    @await Html.PartialAsync("~/Views/partials/_head.cshtml")
+</head>
+<body>
+<div class="admin-shell">
+    @await Html.PartialAsync("~/Views/partials/_sidebar-admin.cshtml")
+    <main class="admin-main">
+        @RenderBody()
+    </main>
+</div>
+
+<div class="modal fade" id="confirm-modal" tabindex="-1" aria-labelledby="confirm-title" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width:440px;">
+        <div class="modal-content" style="border-radius:var(--r-xl);border:0;">
+            <div class="modal-body" style="padding:28px 28px 6px;">
+                <div class="confirm-ico" id="confirm-ico"><i class="bi bi-question-lg"></i></div>
+                <h2 class="h-sec mt-3 mb-2" id="confirm-title" style="font-size:24px;">Are you sure?</h2>
+                <p class="muted mb-0" id="confirm-text" style="font-size:14.5px;line-height:1.6;"></p>
+            </div>
+            <div class="modal-foot d-flex gap-2">
+                <button type="button" class="btn btn-w-ghost flex-grow-1" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-w flex-grow-1" id="confirm-ok">Confirm</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+    const modalEl = document.getElementById('confirm-modal');
+    const modal = new bootstrap.Modal(modalEl);
+    const title = document.getElementById('confirm-title');
+    const text = document.getElementById('confirm-text');
+    const ok = document.getElementById('confirm-ok');
+    const ico = document.getElementById('confirm-ico');
+    let pending = null, parent = null, confirmed = false;
+
+    function fill(form) {
+        const d = form.dataset;
+        const sub = function (t) {
+            return (t || '').replace(/\{(\w+)\}/g, function (m, name) {
+                const f = form.elements[name];
+                if (!f) return m;
+                return f.tagName === 'SELECT' ? f.options[f.selectedIndex].text : f.value;
+            });
+        };
+        const danger = d.confirmTone === 'danger';
+        title.textContent = sub(d.confirmTitle || 'Are you sure?');
+        text.textContent = sub(d.confirm);
+        ok.textContent = d.confirmOk || 'Confirm';
+        ok.className = 'btn flex-grow-1 ' + (danger ? 'btn-w-danger-fill' : 'btn-w');
+        ico.className = 'confirm-ico' + (danger ? ' danger' : '');
+        ico.innerHTML = '<i class="bi ' + (d.confirmIcon || (danger ? 'bi-exclamation-triangle' : 'bi-question-lg')) + '"></i>';
+    }
+
+    document.addEventListener('submit', function (e) {
+        const form = e.target;
+        if (!(form instanceof HTMLFormElement) || !form.hasAttribute('data-confirm') || form.dataset.confirmed === '1') return;
+        e.preventDefault();
+        pending = form;
+        confirmed = false;
+        fill(form);
+        const parentEl = form.closest('.modal');
+        parent = parentEl ? bootstrap.Modal.getInstance(parentEl) : null;
+        if (parent) {
+            parentEl.addEventListener('hidden.bs.modal', function () { modal.show(); }, { once: true });
+            parent.hide();
+        } else {
+            modal.show();
+        }
+    });
+
+    ok.addEventListener('click', function () {
+        if (!pending) return;
+        confirmed = true;
+        pending.dataset.confirmed = '1';
+        ok.disabled = true;
+        ok.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>Working…';
+        pending.submit();
+    });
+
+    modalEl.addEventListener('hidden.bs.modal', function () {
+        if (!confirmed && parent) parent.show();
+        if (!confirmed) { pending = null; parent = null; }
+        ok.disabled = false;
+    });
+
+    window.addEventListener('pageshow', function () {
+        document.querySelectorAll('form[data-confirmed]').forEach(function (f) { delete f.dataset.confirmed; });
+    });
+
+    document.querySelectorAll('[data-pw-toggle]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            const input = document.getElementById(btn.getAttribute('data-pw-toggle'));
+            const show = input.type === 'password';
+            input.type = show ? 'text' : 'password';
+            btn.querySelector('i').className = show ? 'bi bi-eye-slash' : 'bi bi-eye';
+            btn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+        });
+    });
+})();
+</script>
+@RenderSection("scripts", required: false)
+</body>
+</html>

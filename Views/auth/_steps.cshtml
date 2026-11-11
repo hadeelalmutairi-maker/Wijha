@@ -1,0 +1,37 @@
+@model dynamic
+@{
+    var steps = (IList<Dictionary<string,string>>)(Model?.steps ?? new List<Dictionary<string,string>>());
+    int current = Model?.current ?? 1;
+}
+<div class="join-steps mb-4" role="list" aria-label="Step @current of @steps.Count">
+    @for (int i = 0; i < steps.Count; i++)
+    {
+        int n = i + 1;
+        string state = n < current ? "done" : (n == current ? "now" : "todo");
+        bool isDoneWithHref = state == "done" && steps[i].ContainsKey("href") && !string.IsNullOrEmpty(steps[i]["href"]);
+        if (isDoneWithHref)
+        {
+            <a class="join-step @state" role="listitem" href="@steps[i]["href"]" title="Back to @steps[i]["label"].ToLower()">
+                <span class="join-dot @state"><i class="bi bi-check-lg"></i></span>
+                <span class="join-step-txt">
+                    <span class="join-step-n">Step @n</span>
+                    <span class="join-step-t">@steps[i]["label"]</span>
+                </span>
+            </a>
+        }
+        else
+        {
+            <div class="join-step @state" role="listitem" @(state == "now" ? "aria-current=\"step\"" : "")>
+                <span class="join-dot @state">@if(state == "done"){<i class="bi bi-check-lg"></i>}else{@n}</span>
+                <span class="join-step-txt">
+                    <span class="join-step-n">Step @n</span>
+                    <span class="join-step-t">@steps[i]["label"]</span>
+                </span>
+            </div>
+        }
+        if (n < steps.Count)
+        {
+            <span class="join-line @(n < current ? "on" : "")" aria-hidden="true"></span>
+        }
+    }
+</div>

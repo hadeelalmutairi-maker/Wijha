@@ -1,0 +1,68 @@
+@using Wijha.Models
+@using Wijha.Helpers
+@{
+    var ps = (ProviderService)ViewContext.ViewData["ps"]!;
+    bool isSelected = (bool)(ViewContext.ViewData["isSelected"] ?? false);
+    string bookHref = ViewContext.ViewData["bookHref"] as string ?? "#";
+    DateOnly? nextFree = ViewContext.ViewData["nextFree"] as DateOnly?;
+    bool inCompare = (bool)(ViewContext.ViewData["inCompare"] ?? false);
+    string? imgUrl = WijhaHelpers.ImageUrl(ps.PortfolioUrl);
+}
+<div class="card-w @(isSelected ? "card-sel" : "") service-card">
+    <div class="service-img" style="height:150px;overflow:hidden;border-radius:var(--r-md) var(--r-md) 0 0;position:relative;">
+        @if (imgUrl != null)
+        {
+            <img src="@imgUrl" alt="@ps.OfferingTitle" style="width:100%;height:100%;object-fit:cover;display:block;">
+        }
+        else
+        {
+            @await Html.PartialAsync("~/Views/components/_decor-photo.cshtml", (object)new { seed = ps.ProviderServiceId, height = "100%" })
+        }
+        @if (isSelected)
+        {
+            <span class="badge-w b-ok" style="position:absolute;top:10px;left:10px;"><i class="bi bi-check-circle-fill"></i> Selected</span>
+        }
+    </div>
+    <div style="padding:18px;">
+        <h4 class="h-card mb-1">@ps.OfferingTitle</h4>
+        <div class="muted" style="font-size:13px;">@ps.Service?.ServiceName</div>
+        @if (!string.IsNullOrEmpty(ps.OfferingDescription))
+        {
+            <p class="muted mt-2 mb-0 clamp-2" style="font-size:13.5px;line-height:1.55;">@ps.OfferingDescription</p>
+        }
+        <hr class="divider my-3">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <span class="price" style="font-size:17px;">SAR @ps.Price.ToString("N0")</span>
+                <span class="muted" style="font-size:12px;"> @WijhaHelpers.PriceUnit(ps.PriceUnit)</span>
+            </div>
+            @if (nextFree.HasValue)
+            {
+                <span class="badge-w b-ok" style="font-size:12px;"><i class="bi bi-calendar-check"></i> @nextFree.Value.ToString("dd MMM")</span>
+            }
+            else
+            {
+                <span class="badge-w b-grey" style="font-size:12px;">No open dates</span>
+            }
+        </div>
+        <div class="d-flex gap-2 mt-3">
+            <a href="@bookHref" class="btn @(isSelected ? "btn-w" : "btn-w-ghost") btn-sm-w flex-grow-1">@(isSelected ? "Book now" : "Select")</a>
+            <form method="POST" action="@Url.RouteUrl(inCompare ? "compare.remove" : "compare.add")"
+                  class="flex-shrink-0" title="@(inCompare ? "Remove from compare" : "Add to compare")">
+                @Html.AntiForgeryToken()
+                @if (inCompare)
+                {
+                    <input type="hidden" name="_method" value="DELETE">
+                    <input type="hidden" name="provider_service_id" value="@ps.ProviderServiceId">
+                }
+                else
+                {
+                    <input type="hidden" name="provider_service_id" value="@ps.ProviderServiceId">
+                }
+                <button type="submit" class="btn btn-w-ghost btn-sm-w @(inCompare ? "cmp-active" : "")" aria-label="@(inCompare ? "Remove from compare" : "Compare")">
+                    <i class="bi bi-bar-chart-steps"></i>
+                </button>
+            </form>
+        </div>
+    </div>
+</div>

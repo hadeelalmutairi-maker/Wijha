@@ -1,0 +1,12 @@
+@using Wijha.Support.Http
+@{
+    bool remembered = Flash.Old(ViewContext.HttpContext, "remember") == "1";
+}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <label class="remember-check">
+        <input type="checkbox" name="remember" value="1" @(remembered ? "checked" : "")>
+        <span class="box"><i class="bi bi-check-lg"></i></span>
+        Keep me signed in
+    </label>
+    <a href="@Url.RouteUrl("password.forgot")" style="font-size:14.5px;color:var(--w-green-700);font-weight:700;">Forgot password?</a>
+</div>

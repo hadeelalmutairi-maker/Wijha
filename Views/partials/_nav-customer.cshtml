@@ -1,0 +1,47 @@
+@using Wijha.Support.Auth
+@using Wijha.Support.Helpers
+@{
+    var customer = Auth.Guard(ViewContext.HttpContext, "customer").User<Wijha.Models.Customer>()!;
+    var dbContext = ViewContext.HttpContext.RequestServices.GetRequiredService<Wijha.Data.AppDbContext>();
+    var unreadCount = dbContext.Messages.Count(m => m.CustomerId == customer.CustomerId && m.SenderType == "Provider" && !m.IsRead);
+    var compareServices = ViewContext.HttpContext.Session.GetString("compare_services");
+    var compareCount = string.IsNullOrEmpty(compareServices) ? 0 : System.Text.Json.JsonSerializer.Deserialize<List<int>>(compareServices)?.Count ?? 0;
+}
+<nav class="nav-w">
+    <a href="@Url.RouteUrl("customer.dashboard")" class="logo-row">
+        @await Html.PartialAsync("~/Views/components/_logo.cshtml", new { dark = true, size = 58 })
+        <div>
+            <div class="logo-txt">Wijha</div>
+            <div class="logo-sub">Event Services Marketplace</div>
+        </div>
+    </a>
+    <button class="nav-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#nav-menu-customer" aria-controls="nav-menu-customer" aria-expanded="false" aria-label="Menu">
+        <i class="bi bi-list"></i>
+    </button>
+    <div class="nav-collapse collapse" id="nav-menu-customer">
+        <div class="nav-links">
+            <a href="@Url.RouteUrl("providers.index")">Discover</a>
+            <a href="@Url.RouteUrl("customer.myevents.index")">My Events</a>
+            <a href="@Url.RouteUrl("customer.bookings.index")">My Bookings</a>
+            <a href="@Url.RouteUrl("customer.messages.index")" style="display:inline-flex;align-items:center;gap:6px;">
+                Messages
+                @if (unreadCount > 0) { <span class="badge-w b-gold" style="padding:1px 8px;font-size:11.5px;">@unreadCount</span> }
+            </a>
+        </div>
+        <div class="nav-actions">
+            @if (compareCount > 0)
+            {
+                <a href="@Url.RouteUrl("compare.index")" class="badge-w b-gold text-decoration-none" title="Compare offerings"><i class="bi bi-bar-chart-steps"></i> Compare @compareCount</a>
+            }
+            <a href="@Url.RouteUrl("customer.dashboard")" class="nav-icon-link" title="Dashboard"><i class="bi bi-grid"></i><span class="d-lg-none ms-2">Dashboard</span></a>
+            <a href="@Url.RouteUrl("customer.profile.edit")" class="d-flex align-items-center gap-2 text-decoration-none" title="My profile">
+                @await Html.PartialAsync("~/Views/components/_avatar.cshtml", new { url = WijhaHelpers.ImageUrl(customer.ProfileImageUrl), initials = (customer.FirstName.Substring(0, 1) + customer.LastName.Substring(0, 1)).ToUpperInvariant() })
+                <span class="muted" style="font-size:14px;">@customer.FirstName</span>
+            </a>
+            <form method="post" action="@Url.RouteUrl("logout")">
+                @Html.AntiForgeryToken()
+                <button type="submit" class="btn btn-w-ghost btn-sm-w" aria-label="Log out" title="Log out"><i class="bi bi-box-arrow-right nav-logout-ico"></i><span class="nav-logout-txt">Log out</span></button>
+            </form>
+        </div>
+    </div>
+</nav>

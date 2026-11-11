@@ -1,0 +1,25 @@
+@model dynamic
+@using Wijha.Support.Http
+@using Wijha.Helpers
+@{
+    string cityValue = Flash.Old(ViewContext.HttpContext, "city") ?? (Model?.value ?? "");
+    var cityList = WijhaHelpers.Cities();
+    var errors = new ErrorBag(ViewContext);
+}
+<div class="field">
+    <label for="city">City</label>
+    <div class="inp-icon"><i class="bi bi-geo-alt"></i>
+        <select name="city" id="city" class="inp @(errors.Has("city") ? "inp-err" : "")" required>
+            <option value="" disabled @(cityValue == "" ? "selected" : "")>Select your city</option>
+            @if (cityValue != "" && !cityList.Contains(cityValue))
+            {
+                <option value="@cityValue" selected>@cityValue</option>
+            }
+            @foreach (var c in cityList)
+            {
+                <option value="@c" @(cityValue == c ? "selected" : "")>@c</option>
+            }
+        </select>
+    </div>
+    @if (errors.Has("city")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("city")</div> }
+</div>

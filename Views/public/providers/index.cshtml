@@ -1,0 +1,269 @@
+@using Wijha.Models
+@using Wijha.Support
+@using Wijha.Helpers
+@{
+    bool isCustomer = ViewBag.IsCustomerAuth == true;
+    Layout = isCustomer ? "~/Views/layouts/_customer.cshtml" : "~/Views/layouts/_public.cshtml";
+    ViewBag.Title = "Browse providers | Wijha";
+    var offerings = (LengthAwarePaginator<ProviderService>)ViewBag.Offerings;
+    var services = (IEnumerable<Service>)ViewBag.Services;
+    var cities = (IEnumerable<string>)ViewBag.Cities;
+    var filters = (Dictionary<string, string?>)ViewBag.Filters;
+    var priceBounds = (Dictionary<string, int>)ViewBag.PriceBounds;
+    var serviceCounts = (Dictionary<int, int>)ViewBag.ServiceCounts;
+    var cityCounts = (Dictionary<string, int>)ViewBag.CityCounts;
+    var suggestions = (IEnumerable<string>)ViewBag.Suggestions;
+    int priceMin = priceBounds["min"];
+    int priceMax = priceBounds["max"];
+    string? fServiceId = filters.GetValueOrDefault("service_id");
+    string? fCity = filters.GetValueOrDefault("city");
+    string? fEventDate = filters.GetValueOrDefault("event_date");
+    string? fSort = filters.GetValueOrDefault("sort") ?? "rating";
+    string? fQ = filters.GetValueOrDefault("q");
+    int? fBudgetMin = filters.GetValueOrDefault("budget_min") is string bMin && int.TryParse(bMin, out int bMinV) ? bMinV : (int?)null;
+    int? fBudgetMax = filters.GetValueOrDefault("budget_max") is string bMax && int.TryParse(bMax, out int bMaxV) ? bMaxV : (int?)null;
+    var activeFilters = filters.Where(f => f.Value != null && f.Key != "sort").ToList();
+    var nextFree = (Dictionary<int, DateOnly?>)ViewBag.NextFree;
+}
+
+@await Html.PartialAsync("~/Views/components/_photo-hero.cshtml", (object)new { image = "search", eyebrow = "Find your provider", title = "Browse Event Providers", subtitle = "Filter by service, city, budget and date to find the right provider for your event." })
+
+<div class="crumbs"><a href="@Url.RouteUrl("home")">Home</a> <i class="bi bi-chevron-right" style="font-size:10px;"></i> <span class="cur">Browse providers</span></div>
+
+<div class="prov-layout">
+    <aside class="prov-sidebar" id="filter-panel">
+        <form method="GET" action="@Url.RouteUrl("providers.index")" id="filter-form">
+            @if (!string.IsNullOrEmpty(fSort))
+            {
+                <input type="hidden" name="sort" value="@fSort">
+            }
+            @if (!string.IsNullOrEmpty(fQ))
+            {
+                <input type="hidden" name="q" value="@fQ">
+            }
+
+            <div class="filter-section">
+                <div class="filter-sec-head">Service</div>
+                @foreach (var svc in services)
+                {
+                    int cnt = serviceCounts.GetValueOrDefault(svc.ServiceId);
+                    <label class="filter-check">
+                        <input type="checkbox" name="service_id[]" value="@svc.ServiceId"
+                               @(fServiceId == svc.ServiceId.ToString() ? "checked" : "")
+                               onchange="this.form.submit()">
+                        <span class="box"><i class="bi bi-check-lg"></i></span>
+                        <span class="flex-grow-1">@svc.ServiceName</span>
+                        <span class="cnt">@cnt</span>
+                    </label>
+                }
+            </div>
+
+            <hr class="divider my-3">
+
+            <div class="filter-section">
+                <div class="filter-sec-head">City</div>
+                @foreach (var city in cities)
+                {
+                    int cnt = cityCounts.GetValueOrDefault(city);
+                    <label class="filter-check">
+                        <input type="checkbox" name="city[]" value="@city"
+                               @(fCity == city ? "checked" : "")
+                               onchange="this.form.submit()">
+                        <span class="box"><i class="bi bi-check-lg"></i></span>
+                        <span class="flex-grow-1">@city</span>
+                        <span class="cnt">@cnt</span>
+                    </label>
+                }
+            </div>
+
+            <hr class="divider my-3">
+
+            <div class="filter-section">
+                <div class="filter-sec-head">Budget (SAR)</div>
+                <div class="slider-wrap">
+                    <div class="slider-track">
+                        <div class="slider-fill" id="sf"></div>
+                        <div class="slider-knob" id="knob-lo" data-side="lo"></div>
+                        <div class="slider-knob" id="knob-hi" data-side="hi"></div>
+                    </div>
+                    <div class="slider-labels">
+                        <span id="lbl-lo">SAR @(fBudgetMin ?? priceMin)</span>
+                        <span id="lbl-hi">SAR @(fBudgetMax ?? priceMax)</span>
+                    </div>
+                    <input type="hidden" name="budget_min" id="inp-lo" value="@(fBudgetMin ?? priceMin)">
+                    <input type="hidden" name="budget_max" id="inp-hi" value="@(fBudgetMax ?? priceMax)">
+                </div>
+            </div>
+
+            <hr class="divider my-3">
+
+            <div class="filter-section">
+                <div class="filter-sec-head">Available on</div>
+                <input type="date" name="event_date" class="inp" value="@fEventDate" min="@DateTime.Today.ToString("yyyy-MM-dd")"
+                       onchange="this.form.submit()">
+            </div>
+
+            <div class="mt-4">
+                <a href="@Url.RouteUrl("providers.index")" class="btn btn-w-ghost btn-sm-w btn-block">Clear all filters</a>
+            </div>
+        </form>
+    </aside>
+
+    <div class="prov-main">
+        @await Html.PartialAsync("~/Views/partials/_flash.cshtml")
+
+        <div class="prov-topbar">
+            <div>
+                <span style="font-size:15px;font-weight:600;color:var(--w-green-900);">@offerings.Total.ToString("N0") @(offerings.Total == 1 ? "offering" : "offerings")</span>
+                @if (!string.IsNullOrEmpty(fQ))
+                {
+                    <span class="muted" style="font-size:14px;"> matching "@fQ"</span>
+                }
+            </div>
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <button type="button" class="btn btn-w-ghost btn-sm-w d-lg-none" onclick="document.getElementById('filter-panel').classList.toggle('open')">
+                    <i class="bi bi-sliders me-1"></i>Filters
+                </button>
+                <form method="GET" action="@Url.RouteUrl("providers.index")" class="d-flex align-items-center gap-2">
+                    @foreach (var f in filters.Where(f => f.Value != null && f.Key != "sort"))
+                    {
+                        <input type="hidden" name="@f.Key" value="@f.Value">
+                    }
+                    <label class="lbl" for="sort">Sort by</label>
+                    <select name="sort" id="sort" class="inp inp-sm" onchange="this.form.submit()">
+                        <option value="rating" @(fSort == "rating" ? "selected" : "")>Rating</option>
+                        <option value="price_asc" @(fSort == "price_asc" ? "selected" : "")>Price: low to high</option>
+                        <option value="price_desc" @(fSort == "price_desc" ? "selected" : "")>Price: high to low</option>
+                        <option value="newest" @(fSort == "newest" ? "selected" : "")>Newest</option>
+                    </select>
+                </form>
+            </div>
+        </div>
+
+        @if (activeFilters.Any())
+        {
+            <div class="d-flex gap-2 flex-wrap mb-3">
+                @foreach (var f in activeFilters)
+                {
+                    string label = f.Key switch {
+                        "service_id" => services.FirstOrDefault(s => s.ServiceId.ToString() == f.Value)?.ServiceName ?? f.Value!,
+                        "city" => f.Value!,
+                        "event_date" => "Date: " + (DateOnly.TryParse(f.Value, out DateOnly d) ? d.ToString("dd MMM yyyy") : f.Value!),
+                        "budget_min" => "Min: SAR " + f.Value,
+                        "budget_max" => "Max: SAR " + f.Value,
+                        _ => f.Key + ": " + f.Value
+                    };
+                    string removeUrl = Url.RouteUrl("providers.index", new Dictionary<string, object?>(
+                        filters.Where(x => x.Key != f.Key && x.Value != null).Select(x => KeyValuePair.Create<string, object?>(x.Key, x.Value))
+                    ))!;
+                    <a href="@removeUrl" class="chip btn-sm-w">@label <i class="bi bi-x ms-1"></i></a>
+                }
+                <a href="@Url.RouteUrl("providers.index")" class="chip btn-sm-w" style="color:var(--w-danger);">Clear all</a>
+            </div>
+        }
+
+        @if (!string.IsNullOrEmpty(fQ) && suggestions.Any())
+        {
+            <div class="card-w mb-3" style="padding:16px 20px;">
+                <span class="muted" style="font-size:14px;">Did you mean: </span>
+                @foreach (var s in suggestions)
+                {
+                    <a href="@Url.RouteUrl("providers.index", new { q = s })" class="chip btn-sm-w ms-1">@s</a>
+                }
+            </div>
+        }
+
+        @if (!offerings.Items.Any())
+        {
+            <div class="card-w text-center" style="padding:70px 40px;">
+                @await Html.PartialAsync("~/Views/components/_empty-search.cshtml")
+                <h2 class="h-sec mt-4">No results for these filters</h2>
+                <p class="lead-w mt-3" style="max-width:420px;margin:0 auto;">Try removing a filter or broadening your budget range.</p>
+                <a href="@Url.RouteUrl("providers.index")" class="btn btn-w btn-lg-w mt-4">Clear all filters</a>
+            </div>
+        }
+        else
+        {
+            <div class="row g-4">
+                @{
+                    DateOnly? eventDate = !string.IsNullOrEmpty(fEventDate) && DateOnly.TryParse(fEventDate, out DateOnly parsedDate) ? parsedDate : (DateOnly?)null;
+                }
+                @foreach (var ps in offerings.Items)
+                {
+                    ViewContext.ViewData["ps"] = ps;
+                    ViewContext.ViewData["layout"] = "stack";
+                    ViewContext.ViewData["date"] = eventDate;
+                    ViewContext.ViewData["nextFree"] = nextFree;
+                    <div class="col-sm-6 col-lg-4">@await Html.PartialAsync("~/Views/public/providers/_offering-card.cshtml")</div>
+                }
+            </div>
+            <div class="mt-4">@Html.Raw(offerings.Links())</div>
+        }
+    </div>
+</div>
+
+@section scripts {
+<script>
+(function () {
+    var track = document.querySelector('.slider-track');
+    if (!track) return;
+    var fill = document.getElementById('sf');
+    var knobLo = document.getElementById('knob-lo');
+    var knobHi = document.getElementById('knob-hi');
+    var lblLo = document.getElementById('lbl-lo');
+    var lblHi = document.getElementById('lbl-hi');
+    var inpLo = document.getElementById('inp-lo');
+    var inpHi = document.getElementById('inp-hi');
+    var pMin = @priceMin, pMax = @priceMax;
+    var curLo = parseInt(inpLo.value), curHi = parseInt(inpHi.value);
+    var submitTimer;
+
+    function pct(v) { return ((v - pMin) / (pMax - pMin)) * 100; }
+    function fromPct(p) { return Math.round(pMin + (p / 100) * (pMax - pMin)); }
+
+    function render() {
+        var lo = pct(curLo), hi = pct(curHi);
+        fill.style.left = lo + '%';
+        fill.style.width = (hi - lo) + '%';
+        knobLo.style.left = lo + '%';
+        knobHi.style.left = hi + '%';
+        lblLo.textContent = 'SAR ' + curLo.toLocaleString();
+        lblHi.textContent = 'SAR ' + curHi.toLocaleString();
+        inpLo.value = curLo;
+        inpHi.value = curHi;
+    }
+
+    function startDrag(knob) {
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+        document.addEventListener('touchmove', onMove, { passive: false });
+        document.addEventListener('touchend', onUp);
+        function onMove(e) {
+            e.preventDefault();
+            var rect = track.getBoundingClientRect();
+            var clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            var p = Math.max(0, Math.min(100, (clientX - rect.left) / rect.width * 100));
+            var v = fromPct(p);
+            if (knob.dataset.side === 'lo') curLo = Math.min(v, curHi - 1);
+            else curHi = Math.max(v, curLo + 1);
+            render();
+            clearTimeout(submitTimer);
+            submitTimer = setTimeout(function () { document.getElementById('filter-form').submit(); }, 700);
+        }
+        function onUp() {
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup', onUp);
+            document.removeEventListener('touchmove', onMove);
+            document.removeEventListener('touchend', onUp);
+        }
+    }
+
+    knobLo.addEventListener('mousedown', function () { startDrag(knobLo); });
+    knobHi.addEventListener('mousedown', function () { startDrag(knobHi); });
+    knobLo.addEventListener('touchstart', function () { startDrag(knobLo); }, { passive: true });
+    knobHi.addEventListener('touchstart', function () { startDrag(knobHi); }, { passive: true });
+
+    render();
+}());
+</script>
+}

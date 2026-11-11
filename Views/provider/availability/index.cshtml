@@ -1,0 +1,288 @@
+@using Wijha.Models
+@using Wijha.Support.Http
+@{
+    Layout = "~/Views/layouts/_provider.cshtml";
+    ViewBag.Title = "Availability | Wijha";
+    var month = (DateTime)ViewBag.Month;
+    string? selectedDate = ViewBag.SelectedDate as string;
+    var calendarWeeks = (IEnumerable<IEnumerable<dynamic?>>)ViewBag.CalendarWeeks;
+    var daySlots = (IEnumerable<Availability>)ViewBag.DaySlots ?? Enumerable.Empty<Availability>();
+    var errors = new ErrorBag(ViewContext);
+    bool reopenDrawer = errors.HasAny(new[] { "available_date", "start_time", "end_time", "availability_status", "repeat" });
+    DateTime today = DateTime.Today;
+    DateTime? selectedDay = !string.IsNullOrEmpty(selectedDate) && DateTime.TryParse(selectedDate, out var sd) ? (DateTime?)sd : null;
+    bool canEditDay = selectedDay.HasValue && selectedDay.Value >= today;
+    string monthParam = month.ToString("yyyy-MM");
+    string prevMonth = month.AddMonths(-1).ToString("yyyy-MM");
+    string nextMonth = month.AddMonths(1).ToString("yyyy-MM");
+}
+<div class="page-pad">
+    @await Html.PartialAsync("~/Views/partials/_flash.cshtml")
+    <div class="d-flex justify-content-between align-items-end flex-wrap gap-3 mb-4">
+        <div>
+            <h1 class="h-pg mb-2">Availability schedule</h1>
+            <p class="muted mb-0" style="font-size:15px;max-width:640px;">@month.ToString("MMMM yyyy") &middot; You are one working unit, so each slot you open here applies across all of your services.</p>
+        </div>
+        <button type="button" class="btn btn-w btn-lg-w" data-slot-open data-date="@(canEditDay ? selectedDate : "")"><i class="bi bi-plus-lg me-2"></i>Add availability</button>
+    </div>
+
+    <div class="d-flex gap-4 flex-wrap">
+        <div class="flex-grow-1" style="min-width:0;flex-basis:560px;">
+            <div class="card-w cal-card" style="padding:28px;">
+                <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+                    <div class="d-flex align-items-center gap-3">
+                        <a href="@Url.RouteUrl("provider.availability.index", new { month = prevMonth })" class="chip btn-sm-w" aria-label="Previous month"><i class="bi bi-chevron-left"></i></a>
+                        <h2 class="h-sec mb-0">@month.ToString("MMMM yyyy")</h2>
+                        <a href="@Url.RouteUrl("provider.availability.index", new { month = nextMonth })" class="chip btn-sm-w" aria-label="Next month"><i class="bi bi-chevron-right"></i></a>
+                    </div>
+                    <div class="legend">
+                        <span><span class="k" style="background:var(--w-green-700);border:1.5px solid var(--w-green-700);"></span>Open</span>
+                        <span><span class="k" style="background:#F5E6E1;border:1.5px solid #EBD3CB;"></span>Fully booked</span>
+                        <span><span class="k" style="background:#EFE8DE;border:1.5px solid #E1D9CD;"></span>Blocked by you</span>
+                        <span><span class="k" style="background:#fff;border:1.5px solid var(--w-line);"></span>No schedule</span>
+                    </div>
+                </div>
+
+                <div class="cal">
+                    <div class="dow">Sun</div><div class="dow">Mon</div><div class="dow">Tue</div><div class="dow">Wed</div><div class="dow">Thu</div><div class="dow">Fri</div><div class="dow">Sat</div>
+                    @foreach (var week in calendarWeeks)
+                    {
+                        @foreach (var cell in week)
+                        {
+                            if (cell == null)
+                            {
+                                <div class="d off"></div>
+                            }
+                            else
+                            {
+                                string dateStr = (string)cell.dateStr;
+                                string status = (string)cell.status;
+                                bool isPast = (bool)cell.isPast;
+                                int booked = (int)cell.booked;
+                                int bookable = (int)cell.bookable;
+                                int day = (int)cell.day;
+                                bool isSel = selectedDate == dateStr;
+                                <a href="@Url.RouteUrl("provider.availability.index", new { date = dateStr, month = monthParam })"
+                                   class="d @status @(isSel ? "sel" : "") @(isPast ? "past" : "")" style="text-decoration:none;">
+                                    @day
+                                    @if (status == "blocked")
+                                    {
+                                        <span class="mini">Blocked</span>
+                                    }
+                                    else if (bookable > 0)
+                                    {
+                                        <span class="mini" title="@booked of @bookable slots booked">@booked / @bookable</span>
+                                    }
+                                </a>
+                            }
+                        }
+                    }
+                </div>
+                <p class="muted mt-3 mb-0" style="font-size:12.5px;">Numbers show booked slots out of the slots you opened that day.</p>
+            </div>
+        </div>
+
+        <div class="side-col" style="width:340px;flex:none;">
+            <div class="card-w" style="padding:24px;">
+                @if (selectedDay.HasValue)
+                {
+                    int openCount = daySlots.Count(s => s.AvailabilityStatus == "Open");
+                    int bookedCount = daySlots.Count(s => s.AvailabilityStatus == "Booked");
+                    string dayStateLbl = !daySlots.Any() ? "No schedule" : (openCount > 0 ? "Open" : (bookedCount > 0 ? "Fully booked" : "Blocked"));
+                    string dayStateBadge = !daySlots.Any() ? "b-grey" : (openCount > 0 ? "b-ok" : (bookedCount > 0 ? "b-err" : "b-warn"));
+                    <div class="lbl">Selected day</div>
+                    <h3 class="h-card ff mt-2" style="font-size:20px;">@selectedDay.Value.ToString("dddd, d MMM yyyy")</h3>
+                    <hr class="divider my-3">
+                    <div class="sum-row"><span class="k">Slots</span><span class="v">@daySlots.Count()</span></div>
+                    <div class="sum-row"><span class="k">Booked</span><span class="v">@bookedCount</span></div>
+                    <div class="sum-row"><span class="k">Still open</span><span class="v">@openCount</span></div>
+                    <div class="sum-row align-items-center"><span class="k">Status</span><span class="badge-w @dayStateBadge">@dayStateLbl</span></div>
+                    <hr class="divider my-3">
+                    <div class="lbl mb-2">Slots</div>
+                    @if (daySlots.Any())
+                    {
+                        @foreach (var slot in daySlots)
+                        {
+                            string slotNote = slot.AvailabilityStatus == "Booked" ? "Booked by a customer" : (slot.AvailabilityStatus == "Blocked" ? "Blocked by you" : "Open for booking");
+                            string slotBadgeLbl = slot.AvailabilityStatus == "Booked" ? "Taken" : (slot.AvailabilityStatus == "Blocked" ? "Blocked" : "Free");
+                            string slotBadgeCls = slot.AvailabilityStatus == "Booked" ? "b-err" : (slot.AvailabilityStatus == "Blocked" ? "b-warn" : "b-ok");
+                            string slotClass = slot.AvailabilityStatus == "Booked" ? "slot-taken" : (slot.AvailabilityStatus == "Blocked" ? "slot-blocked" : "");
+                            <div class="slot-card @slotClass">
+                                <div class="flex-grow-1">
+                                    <div style="font-weight:700;font-size:15px;">@slot.StartTime.ToString("HH:mm") &ndash; @slot.EndTime.ToString("HH:mm")</div>
+                                    <div class="muted" style="font-size:12.5px;">@slotNote</div>
+                                </div>
+                                <span class="badge-w @slotBadgeCls">@slotBadgeLbl</span>
+                                @if (slot.AvailabilityStatus != "Booked")
+                                {
+                                    <form method="post" action="@Url.RouteUrl("provider.availability.destroy", new { id = slot.AvailabilityId })" onsubmit="return confirm('Remove this slot?');">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="_method" value="DELETE">
+                                        <button type="submit" class="slot-del" aria-label="Remove slot @slot.StartTime.ToString("HH:mm")"><i class="bi bi-trash"></i></button>
+                                    </form>
+                                }
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <p class="muted mb-0" style="font-size:14px;">No slots on this day yet.</p>
+                    }
+
+                    @if (canEditDay)
+                    {
+                        <button type="button" class="btn btn-w btn-block mt-3" data-slot-open data-date="@selectedDate"><i class="bi bi-plus-lg me-2"></i>Add a slot</button>
+                        @if (openCount > 0 || !daySlots.Any())
+                        {
+                            <button type="button" class="btn btn-w-ghost btn-block mt-2" data-slot-open data-date="@selectedDate" data-block="1">Block this day</button>
+                        }
+                    }
+                    else
+                    {
+                        <p class="muted mt-3 mb-0" style="font-size:13px;">This day has passed, so its slots cannot change.</p>
+                    }
+                }
+                else
+                {
+                    <div class="lbl">Selected day</div>
+                    <p class="muted mt-2 mb-3" style="font-size:14px;">Pick a day on the calendar to see its slots, or add availability for any date.</p>
+                    <button type="button" class="btn btn-w btn-block" data-slot-open><i class="bi bi-plus-lg me-2"></i>Add availability</button>
+                }
+            </div>
+
+            <div class="card-w mt-3" style="padding:22px;">
+                <div class="lbl mb-2">How slots work</div>
+                <p class="muted mb-0" style="font-size:13.5px;line-height:1.65;">Customers can only request a date and time that falls inside one of your open slots. When you accept a request, that slot is marked as taken.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="offcanvas offcanvas-end slot-drawer" tabindex="-1" id="slot-drawer" aria-labelledby="slot-drawer-title" data-reopen="@(reopenDrawer ? "1" : "0")">
+    <form method="post" action="@Url.RouteUrl("provider.availability.store")" class="d-flex flex-column h-100">
+        @Html.AntiForgeryToken()
+        <div class="offcanvas-header align-items-start" style="padding:30px 32px 0;">
+            <div>
+                <div class="lbl">Availability schedule</div>
+                <h2 class="h-sec mt-1 mb-0" id="slot-drawer-title">Add a slot</h2>
+            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+        </div>
+        <div class="offcanvas-body" style="padding:24px 32px;">
+            <div class="field">
+                <label for="available_date">Date <span style="color:var(--w-danger);">*</span></label>
+                <div class="inp-icon"><i class="bi bi-calendar3"></i>
+                    <input type="date" name="available_date" id="available_date" class="inp @(errors.Has("available_date") ? "inp-err" : "")"
+                           value="@(Flash.Old(ViewContext.HttpContext, "available_date") ?? (canEditDay ? selectedDate : ""))"
+                           required min="@today.ToString("yyyy-MM-dd")"></div>
+                @if (errors.Has("available_date")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("available_date")</div> }
+            </div>
+            <div class="row g-3">
+                <div class="col-6"><div class="field">
+                    <label for="start_time">Start time <span style="color:var(--w-danger);">*</span></label>
+                    <div class="inp-icon"><i class="bi bi-clock"></i>
+                        <input type="time" name="start_time" id="start_time" class="inp @(errors.Has("start_time") ? "inp-err" : "")" value="@(Flash.Old(ViewContext.HttpContext, "start_time") ?? "09:00")" required></div>
+                    @if (errors.Has("start_time")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("start_time")</div> }
+                </div></div>
+                <div class="col-6"><div class="field">
+                    <label for="end_time">End time <span style="color:var(--w-danger);">*</span></label>
+                    <div class="inp-icon"><i class="bi bi-clock"></i>
+                        <input type="time" name="end_time" id="end_time" class="inp @(errors.Has("end_time") ? "inp-err" : "")" value="@(Flash.Old(ViewContext.HttpContext, "end_time") ?? "17:00")" required></div>
+                    @if (errors.Has("end_time")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("end_time")</div> }
+                </div></div>
+            </div>
+            <div class="field">
+                <label>Status</label>
+                <input type="hidden" name="availability_status" id="availability_status" value="@(Flash.Old(ViewContext.HttpContext, "availability_status") ?? "Open")">
+                <div class="d-flex gap-2" role="group" aria-label="Status">
+                    <button type="button" class="chip btn-sm-w" data-status="Open">Open</button>
+                    <button type="button" class="chip btn-sm-w" data-status="Blocked">Blocked</button>
+                </div>
+                <div class="help" id="status-help"></div>
+            </div>
+            <hr class="divider my-4">
+            <div class="lbl mb-3">Repeat</div>
+            <input type="hidden" name="repeat" id="repeat" value="@(Flash.Old(ViewContext.HttpContext, "repeat") ?? "once")">
+            <div class="opt rep-opt" data-repeat="once"><span class="radio"></span>
+                <div class="flex-grow-1"><div style="font-weight:700;font-size:15px;">This date only</div></div></div>
+            <div class="opt rep-opt" data-repeat="weekly"><span class="radio"></span>
+                <div class="flex-grow-1"><div style="font-weight:700;font-size:15px;" id="rep-weekly">Every week until the end of the month</div>
+                    <div class="muted mt-1" style="font-size:13px;" id="rep-weekly-n"></div></div></div>
+            <div class="opt rep-opt" data-repeat="daily" style="margin-bottom:0;"><span class="radio"></span>
+                <div class="flex-grow-1"><div style="font-weight:700;font-size:15px;" id="rep-daily">Every day until the end of the month</div>
+                    <div class="muted mt-1" style="font-size:13px;" id="rep-daily-n"></div></div></div>
+            <div class="help">Dates that already have a slot at this start time are skipped.</div>
+        </div>
+        <div class="d-flex gap-2" style="padding:18px 32px 28px;border-top:1px solid var(--w-line);">
+            <button type="button" class="btn btn-w-ghost flex-grow-1" data-bs-dismiss="offcanvas">Cancel</button>
+            <button type="submit" class="btn btn-w flex-grow-1">Save slot</button>
+        </div>
+    </form>
+</div>
+
+@section scripts {
+<script>
+(function () {
+    const drawerEl = document.getElementById('slot-drawer');
+    const drawer = bootstrap.Offcanvas.getOrCreateInstance(drawerEl);
+    const dateIn = document.getElementById('available_date');
+    const startIn = document.getElementById('start_time');
+    const endIn = document.getElementById('end_time');
+    const statusIn = document.getElementById('availability_status');
+    const repeatIn = document.getElementById('repeat');
+    const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+
+    function setStatus(value) {
+        statusIn.value = value;
+        drawerEl.querySelectorAll('[data-status]').forEach(function (b) { b.classList.toggle('chip-on', b.dataset.status === value); });
+        document.getElementById('status-help').textContent = value === 'Open'
+            ? 'Customers can request this time straight away.'
+            : 'Customers will see this time as unavailable.';
+    }
+    function setRepeat(value) {
+        repeatIn.value = value;
+        drawerEl.querySelectorAll('.rep-opt').forEach(function (o) {
+            const on = o.dataset.repeat === value;
+            o.classList.toggle('on', on);
+            o.querySelector('.radio').classList.toggle('on', on);
+        });
+    }
+    function describeRepeat() {
+        if (!dateIn.value) return;
+        const d = new Date(dateIn.value + 'T00:00:00');
+        const last = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+        const weekly = Math.floor((last - d.getDate()) / 7) + 1;
+        const daily = last - d.getDate() + 1;
+        const end = last + ' ' + months[d.getMonth()].slice(0, 3) + ' ' + d.getFullYear();
+        document.getElementById('rep-weekly').textContent = 'Every ' + days[d.getDay()] + ' until ' + end;
+        document.getElementById('rep-weekly-n').textContent = 'Creates ' + weekly + ' slot' + (weekly === 1 ? '' : 's');
+        document.getElementById('rep-daily').textContent = 'Every day until ' + end;
+        document.getElementById('rep-daily-n').textContent = 'Creates ' + daily + ' slot' + (daily === 1 ? '' : 's');
+    }
+
+    drawerEl.querySelectorAll('[data-status]').forEach(function (b) { b.addEventListener('click', function () { setStatus(b.dataset.status); }); });
+    drawerEl.querySelectorAll('.rep-opt').forEach(function (o) { o.addEventListener('click', function () { setRepeat(o.dataset.repeat); }); });
+    dateIn.addEventListener('change', describeRepeat);
+
+    document.querySelectorAll('[data-slot-open]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            if (btn.dataset.date) dateIn.value = btn.dataset.date;
+            if (btn.dataset.block) {
+                startIn.value = '00:00'; endIn.value = '23:59'; setStatus('Blocked');
+            } else {
+                setStatus('Open');
+            }
+            setRepeat('once');
+            describeRepeat();
+            drawer.show();
+        });
+    });
+
+    setStatus(statusIn.value || 'Open');
+    setRepeat(repeatIn.value || 'once');
+    describeRepeat();
+    if (drawerEl.dataset.reopen === '1') drawer.show();
+})();
+</script>
+}

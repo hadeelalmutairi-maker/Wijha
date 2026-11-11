@@ -1,0 +1,148 @@
+@using Wijha.Models
+@using Wijha.Support.Http
+@using Wijha.Helpers
+@model Booking
+@{
+    Layout = "~/Views/layouts/_customer.cshtml";
+    ViewBag.Title = "Edit booking | Wijha";
+    var ps = Model.ProviderService!;
+    var provider = ps.ServiceProvider!;
+    var statusMap = new Dictionary<string,string> { ["Pending"]="b-warn", ["Accepted"]="b-ok", ["Rejected"]="b-err", ["Completed"]="b-grey", ["Cancelled"]="b-err" };
+    var payState = Model.PaymentState();
+    var errors = new ErrorBag(ViewContext);
+}
+<div class="crumbs crumbs-c"><a href="@Url.RouteUrl("customer.bookings.index")">My bookings</a> <i class="bi bi-chevron-right" style="font-size:10px;"></i> <span class="cur">@Model.Reference</span></div>
+
+<div class="page-wrap">
+    <div class="d-flex justify-content-between align-items-end flex-wrap gap-3 mb-4">
+        <div>
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <h1 class="h-pg mb-0">Edit booking details</h1>
+                <span class="badge-w @statusMap[Model.BookingStatus]">@Model.BookingStatus</span>
+            </div>
+            <p class="muted mt-2 mb-0" style="font-size:15px;">@ps.OfferingTitle &middot; @provider.BusinessName &middot; @Model.Reference</p>
+        </div>
+    </div>
+
+    @await Html.PartialAsync("~/Views/partials/_flash.cshtml")
+
+    <div class="alert-w a-info mb-4">
+        <i class="bi bi-clock-history" style="font-size:18px;"></i>
+        <div>You can change the date, time, venue, guests and requirements until <strong>@Model.ModificationDeadline.ToString("dd MMM yyyy, HH:mm")</strong>. The provider sees your changes straight away.</div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-lg-8">
+            <form method="post" action="@Url.RouteUrl("customer.bookings.update", new { id = Model.BookingId })" id="edit-booking-form" class="card-w" style="padding:30px;">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="_method" value="PUT">
+                <input type="hidden" name="provider_service_id" value="@Model.ProviderServiceId">
+
+                <h2 class="h-sec mb-4">When and where</h2>
+                <div class="row g-3">
+                    <div class="col-md-6"><div class="field">
+                        <label for="service_date">Service date <span style="color:var(--w-danger);">*</span></label>
+                        <div class="inp-icon"><i class="bi bi-calendar3"></i>
+                            <input type="date" name="service_date" id="service_date" class="inp @(errors.Has("service_date") ? "inp-err" : "")"
+                                   value="@(Flash.Old(ViewContext.HttpContext, "service_date") ?? Model.ServiceDate.ToString("yyyy-MM-dd"))" required min="@DateTime.Today.AddDays(1).ToString("yyyy-MM-dd")"></div>
+                        @if (errors.Has("service_date")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("service_date")</div> }
+                    </div></div>
+                    <div class="col-md-6"><div class="field">
+                        <label for="service_time">Service time <span style="color:var(--w-danger);">*</span></label>
+                        <div class="inp-icon"><i class="bi bi-clock"></i>
+                            <input type="time" name="service_time" id="service_time" class="inp @(errors.Has("service_time") ? "inp-err" : "")"
+                                   value="@(Flash.Old(ViewContext.HttpContext, "service_time") ?? Model.ServiceTime.ToString("HH:mm"))" required></div>
+                        @if (errors.Has("service_time")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("service_time")</div> }
+                    </div></div>
+                </div>
+                <div class="help" style="margin-top:-6px;margin-bottom:16px;">The new date and time must be open on @provider.BusinessName's schedule.
+                    <a href="@Url.RouteUrl("customer.bookings.create", new { provider_service_id = Model.ProviderServiceId })" target="_blank" style="color:var(--w-green-700);font-weight:700;">See open dates</a></div>
+
+                <div class="field">
+                    <label for="venue_address">Venue address <span style="color:var(--w-danger);">*</span></label>
+                    <div class="inp-icon"><i class="bi bi-geo-alt"></i>
+                        <input type="text" name="venue_address" id="venue_address" class="inp @(errors.Has("venue_address") ? "inp-err" : "")"
+                               value="@(Flash.Old(ViewContext.HttpContext, "venue_address") ?? Model.VenueAddress)" required maxlength="255"></div>
+                    @if (errors.Has("venue_address")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("venue_address")</div> }
+                </div>
+
+                <hr class="divider my-4">
+                <h2 class="h-sec mb-4">The occasion</h2>
+                <div class="row g-3">
+                    <div class="col-md-6"><div class="field">
+                        <label for="guest_count">Number of guests</label>
+                        <div class="inp-icon"><i class="bi bi-people"></i>
+                            <input type="number" name="guest_count" id="guest_count" class="inp @(errors.Has("guest_count") ? "inp-err" : "")"
+                                   value="@(Flash.Old(ViewContext.HttpContext, "guest_count") ?? Model.GuestCount?.ToString())" min="0"></div>
+                        @if (errors.Has("guest_count")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("guest_count")</div> }
+                    </div></div>
+                    <div class="col-md-6"><div class="field">
+                        <label for="quantity">Quantity <span style="color:var(--w-danger);">*</span></label>
+                        <div class="inp-icon"><i class="bi bi-123"></i>
+                            <input type="number" name="quantity" id="quantity" class="inp @(errors.Has("quantity") ? "inp-err" : "")"
+                                   value="@(Flash.Old(ViewContext.HttpContext, "quantity") ?? Model.Quantity.ToString())" min="1" required></div>
+                        @if (errors.Has("quantity")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("quantity")</div> }
+                    </div></div>
+                </div>
+
+                <div class="field" style="margin-bottom:0;">
+                    <label for="special_requirements">Special requirements</label>
+                    <textarea name="special_requirements" id="special_requirements" class="inp inp-area @(errors.Has("special_requirements") ? "inp-err" : "")"
+                              rows="4" maxlength="1000" placeholder="Anything the provider should know.">@(Flash.Old(ViewContext.HttpContext, "special_requirements") ?? Model.SpecialRequirements)</textarea>
+                    @if (errors.Has("special_requirements")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("special_requirements")</div> }
+                </div>
+            </form>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card-w" style="padding:26px;">
+                <div class="lbl mb-3">Booking summary</div>
+                <div class="d-flex gap-3 mb-3">
+                    <div style="width:70px;height:56px;border-radius:var(--r-sm);overflow:hidden;flex:none;">
+                        @if (ps.PortfolioUrl != null || provider.LogoUrl != null)
+                        {
+                            <img src="@WijhaHelpers.ImageUrl(ps.PortfolioUrl ?? provider.LogoUrl!)" alt="@ps.OfferingTitle" style="width:100%;height:100%;object-fit:cover;display:block;">
+                        }
+                        else
+                        {
+                            @await Html.PartialAsync("~/Views/components/_decor-photo.cshtml", (object)new { seed = ps.ProviderServiceId, height = "100%" })
+                        }
+                    </div>
+                    <div style="min-width:0;">
+                        <div style="font-weight:700;font-size:15px;line-height:1.3;">@ps.OfferingTitle</div>
+                        <div class="muted" style="font-size:13px;">@provider.BusinessName</div>
+                    </div>
+                </div>
+                <hr class="divider my-3">
+                <div class="sum-row"><span class="k">Reference</span><span class="v">@Model.Reference</span></div>
+                <div class="sum-row"><span class="k">Booking status</span><span class="badge-w @statusMap[Model.BookingStatus]">@Model.BookingStatus</span></div>
+                @if (Model.MyEvent != null)
+                {
+                    <div class="sum-row"><span class="k">Event</span><span class="v">@Model.MyEvent.EventName</span></div>
+                }
+                <div class="sum-row"><span class="k">Agreed price</span><span class="v">SAR @Model.AgreedPrice.ToString("N2")</span></div>
+
+                <hr class="divider my-3">
+                <div class="lbl mb-2">Payment</div>
+                <div class="sum-row"><span class="k">Status</span><span class="badge-w @payState["badge"]">@payState["label"]</span></div>
+                @if (Model.Payment != null)
+                {
+                    <div class="sum-row"><span class="k">Invoice</span><span class="v">@Model.Payment.InvoiceNumber</span></div>
+                    <a href="@Url.RouteUrl("invoice.show", new { id = Model.BookingId })" target="_blank" class="btn btn-w-light btn-block btn-sm-w mt-2"><i class="bi bi-receipt me-2"></i>View invoice</a>
+                }
+                else if (Model.BookingStatus == "Pending")
+                {
+                    <p class="muted mb-0 mt-1" style="font-size:13px;line-height:1.55;">You'll be asked to pay once @provider.BusinessName accepts this request. Nothing is charged before then.</p>
+                }
+                else if (Model.BookingStatus == "Accepted")
+                {
+                    <a href="@Url.RouteUrl("customer.payments.create", new { id = Model.BookingId })" class="btn btn-w-gold btn-block btn-sm-w mt-2"><i class="bi bi-lock-fill me-2"></i>Pay SAR @Model.AgreedPrice.ToString("N0")</a>
+                }
+
+                <hr class="divider my-3">
+                <button type="submit" form="edit-booking-form" class="btn btn-w btn-block btn-lg-w">Save changes</button>
+                <a href="@Url.RouteUrl("customer.bookings.index")" class="btn btn-w-ghost btn-block mt-2">Cancel</a>
+            </div>
+        </div>
+    </div>
+</div>

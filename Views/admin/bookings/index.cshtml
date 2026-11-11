@@ -1,0 +1,199 @@
+@using Wijha.Models
+@using Wijha.Support
+@{
+    Layout = "~/Views/layouts/_admin.cshtml";
+    ViewBag.Title = "Bookings | Admin | Wijha";
+    var bookings = (LengthAwarePaginator<Booking>)ViewBag.Bookings;
+    var providers = (IEnumerable<ServiceProvider>)ViewBag.Providers;
+    var counts = (Dictionary<string, int>)ViewBag.Counts;
+    string q = ViewBag.Q as string ?? "";
+    string status = ViewBag.Status as string ?? "All";
+    string sort = ViewBag.Sort as string ?? "newest";
+    int? providerId = ViewBag.ProviderId as int?;
+    var range = ViewBag.Range as Wijha.Support.DateRange;
+    var statusMap = new Dictionary<string, string> {
+        ["Pending"] = "b-warn", ["Accepted"] = "b-ok", ["Rejected"] = "b-err", ["Completed"] = "b-grey", ["Cancelled"] = "b-err"
+    };
+    var errors = new Wijha.Support.Http.ErrorBag(ViewContext);
+}
+<div class="page-pad">
+    @await Html.PartialAsync("~/Views/partials/_flash.cshtml")
+    @if (errors.Has("booking_status"))
+    {
+        <div class="alert-w a-err mb-3"><i class="bi bi-exclamation-circle-fill"></i><div>@errors.First("booking_status")</div></div>
+    }
+
+    @await Html.PartialAsync("~/Views/components/_admin-head.cshtml", (object)new {
+        eyebrow = "Manage",
+        title = "Bookings",
+        subtitle = "Every request on Wijha. Open one to see its details, or change its status to resolve a dispute."
+    })
+
+    <form method="GET" action="@Url.RouteUrl("admin.bookings.index")" class="a-filters">
+        <input type="hidden" name="status" value="@(status == "All" ? "" : status)">
+        @if (sort == "oldest") { <input type="hidden" name="sort" value="oldest"> }
+        <div class="date-filter">
+            <div class="date-filter-field f-search">
+                <label class="lbl d-block mb-2" for="q">Search</label>
+                <div class="inp-icon"><i class="bi bi-search"></i>
+                    <input type="search" name="q" id="q" class="inp" value="@q" placeholder="Reference, customer, provider, service"></div>
+            </div>
+            <div class="date-filter-field">
+                <label class="lbl d-block mb-2" for="provider_id">Provider</label>
+                <select name="provider_id" id="provider_id" class="inp" onchange="this.form.submit()">
+                    <option value="">All providers</option>
+                    @foreach (var p in providers)
+                    {
+                        <option value="@p.ProviderId" @(providerId == p.ProviderId ? "selected" : "")>@p.BusinessName</option>
+                    }
+                </select>
+            </div>
+            @{ ViewContext.ViewData["range"] = range; ViewContext.ViewData["label"] = "Request date"; ViewContext.ViewData["id"] = "bk"; }
+            @await Html.PartialAsync("~/Views/admin/_date-range.cshtml")
+            <button type="submit" class="btn btn-w btn-sm-w date-filter-btn">Apply</button>
+            @if (q != "" || providerId.HasValue || range?.Key != "all")
+            {
+                <a href="@Url.RouteUrl("admin.bookings.index", status == "All" ? (object)new { } : new { status })" class="btn btn-w-ghost btn-sm-w date-filter-btn">Clear</a>
+            }
+        </div>
+    </form>
+
+    <div class="d-flex justify-content-between align-items-center gap-2 mb-3 flex-wrap">
+        <div class="d-flex gap-2 flex-wrap">
+            @foreach (var kv in counts)
+            {
+                <a href="@Url.RouteUrl("admin.bookings.index", kv.Key == "All" ? (object)new { } : new { status = kv.Key })"
+                   class="chip btn-sm-w @(status == kv.Key ? "chip-on" : "")">@(kv.Key == "Cancelled" ? "Cancelled by customer" : kv.Key) (@kv.Value)</a>
+            }
+        </div>
+        <a href="@Url.RouteUrl("admin.bookings.index", sort == "oldest" ? (object)new { } : new { sort = "oldest" })"
+           class="chip btn-sm-w"><i class="bi bi-arrow-down-up"></i> @(sort == "oldest" ? "Oldest first" : "Newest first")</a>
+    </div>
+
+    <div class="a-table-wrap">
+        <table class="a-table" style="min-width:940px;">
+            <thead><tr><th>Booking</th><th>Service &middot; provider</th><th>Customer</th><th>Service date</th><th class="num">Price</th><th>Status &middot; payment</th><th class="num">Actions</th></tr></thead>
+            <tbody>
+            @if (bookings.Items.Any())
+            {
+                @foreach (var booking in bookings.Items)
+                {
+                    var pay = booking.PaymentState();
+                    <tr>
+                        <td style="white-space:nowrap;"><strong>@booking.Reference</strong><div class="sub">Requested @booking.BookingDate.ToString("j MMM yyyy")</div></td>
+                        <td><strong>@booking.ProviderService?.OfferingTitle</strong><div class="sub">@booking.ProviderService?.ServiceProvider?.BusinessName</div></td>
+                        <td>@booking.Customer?.FirstName @booking.Customer?.LastName<div class="sub" style="white-space:nowrap;">@booking.Customer?.Phone</div></td>
+                        <td style="white-space:nowrap;">@booking.ServiceDate.ToString("j MMM yyyy")<div class="sub">@booking.ServiceTime.ToString("HH:mm")</div></td>
+                        <td class="num"><strong>SAR @booking.AgreedPrice.ToString("N0")</strong></td>
+                        <td style="white-space:nowrap;"><span class="badge-w @(statusMap.GetValueOrDefault(booking.BookingStatus, "b-grey"))">@booking.BookingStatus</span>
+                            <div class="sub mt-1"><i class="bi bi-credit-card me-1"></i>@pay["label"]</div></td>
+                        <td><div class="a-actions">
+                            <button type="button" class="btn btn-w-ghost btn-sm-w" data-bs-toggle="modal" data-bs-target="#details-@booking.BookingId">View</button>
+                            <button type="button" class="btn btn-w-ghost btn-sm-w" data-bs-toggle="modal" data-bs-target="#status-@booking.BookingId" title="Change status"><i class="bi bi-arrow-repeat me-1"></i>Status</button>
+                        </div></td>
+                    </tr>
+                }
+            }
+            else
+            {
+                <tr><td colspan="7" class="a-empty"><i class="bi bi-calendar-x d-block mb-2" style="font-size:26px;"></i>No bookings match these filters.</td></tr>
+            }
+            </tbody>
+        </table>
+    </div>
+    <div class="mt-3">@Html.Raw(bookings.Links())</div>
+</div>
+
+@foreach (var booking in bookings.Items)
+{
+    var pay = booking.PaymentState();
+    <div class="modal fade" id="details-@booking.BookingId" tabindex="-1" aria-labelledby="details-title-@booking.BookingId">
+        <div class="modal-dialog modal-dialog-scrollable"><div class="modal-content" style="border-radius:var(--r-xl);border:0;">
+            <div class="modal-body" style="padding:28px;">
+                <div class="d-flex justify-content-between align-items-start mb-3 gap-2">
+                    <div><div class="lbl">Booking</div><h2 class="h-sec mb-0" id="details-title-@booking.BookingId">@booking.Reference</h2></div>
+                    <span class="badge-w @(statusMap.GetValueOrDefault(booking.BookingStatus, "b-grey"))">@booking.BookingStatus</span>
+                </div>
+                <div class="sum-row"><span class="k">Service</span><span class="v">@booking.ProviderService?.OfferingTitle</span></div>
+                <div class="sum-row"><span class="k">Provider</span><span class="v">@booking.ProviderService?.ServiceProvider?.BusinessName</span></div>
+                <div class="sum-row"><span class="k">Customer</span><span class="v">@booking.Customer?.FirstName @booking.Customer?.LastName</span></div>
+                <div class="sum-row"><span class="k">Customer phone</span><span class="v">@booking.Customer?.Phone</span></div>
+                @if (booking.MyEvent != null) { <div class="sum-row"><span class="k">Event</span><span class="v">@booking.MyEvent.EventName</span></div> }
+                <div class="sum-row"><span class="k">Requested</span><span class="v">@booking.BookingDate.ToString("j MMM yyyy, HH:mm")</span></div>
+                <div class="sum-row"><span class="k">Service date &amp; time</span><span class="v">@booking.ServiceDate.ToString("j MMM yyyy") &middot; @booking.ServiceTime.ToString("HH:mm")</span></div>
+                <div class="sum-row"><span class="k">Venue</span><span class="v" style="max-width:60%;overflow-wrap:anywhere;">@booking.VenueAddress</span></div>
+                <div class="sum-row"><span class="k">Guests / quantity</span><span class="v">@(booking.GuestCount?.ToString() ?? "Not given") / @booking.Quantity</span></div>
+                <div class="sum-row"><span class="k">Agreed price</span><span class="v">SAR @booking.AgreedPrice.ToString("N2")</span></div>
+                @if (booking.ProviderResponseDate.HasValue)
+                {
+                    <div class="sum-row"><span class="k">Provider replied</span><span class="v">@booking.ProviderResponseDate.Value.ToString("j MMM yyyy, HH:mm")</span></div>
+                }
+                @if (!string.IsNullOrEmpty(booking.SpecialRequirements))
+                {
+                    <hr class="divider my-3"><div class="lbl mb-2">Special requirements</div>
+                    <p class="mb-0" style="font-size:14px;color:var(--w-green-700);">@booking.SpecialRequirements</p>
+                }
+                @if (booking.BookingStatus == "Rejected" && !string.IsNullOrEmpty(booking.RejectionReason))
+                {
+                    <hr class="divider my-3"><div class="lbl mb-2">Rejection reason</div>
+                    <p class="mb-0" style="font-size:14px;color:var(--w-danger);">@booking.RejectionReason</p>
+                }
+                @if (booking.BookingStatus == "Cancelled" && !string.IsNullOrEmpty(booking.CancellationReason))
+                {
+                    <hr class="divider my-3"><div class="lbl mb-2">Cancellation reason</div>
+                    <p class="mb-0" style="font-size:14px;color:var(--w-green-700);">@booking.CancellationReason</p>
+                }
+                <hr class="divider my-3">
+                <div class="lbl mb-2">Payment</div>
+                @if (booking.Payment != null)
+                {
+                    <div class="sum-row"><span class="k">Status</span><span class="v">@booking.Payment.PaymentStatus</span></div>
+                    <div class="sum-row"><span class="k">Invoice</span><span class="v">@booking.Payment.InvoiceNumber</span></div>
+                    <div class="sum-row"><span class="k">Method</span><span class="v">@booking.Payment.PaymentMethod</span></div>
+                }
+                else
+                {
+                    <p class="muted mb-0" style="font-size:14px;">Not paid yet.</p>
+                }
+            </div>
+            <div class="modal-foot d-flex gap-2">
+                <button type="button" class="btn btn-w-ghost flex-grow-1" data-bs-dismiss="modal">Close</button>
+                @if (booking.Payment != null)
+                {
+                    <a href="@Url.RouteUrl("invoice.show", new { id = booking.BookingId })" target="_blank" class="btn btn-w flex-grow-1"><i class="bi bi-printer-fill me-1"></i>Print invoice</a>
+                }
+            </div>
+        </div></div>
+    </div>
+
+    <div class="modal fade" id="status-@booking.BookingId" tabindex="-1" aria-labelledby="status-title-@booking.BookingId">
+        <div class="modal-dialog"><div class="modal-content" style="border-radius:var(--r-xl);border:0;">
+            <form method="POST" action="@Url.RouteUrl("admin.bookings.update-status", new { id = booking.BookingId })"
+                  data-confirm="@booking.Reference will change from @booking.BookingStatus to {booking_status}. The customer and provider will see the new status."
+                  data-confirm-title="Change booking status?" data-confirm-ok="Change status" data-confirm-icon="bi-arrow-repeat">
+                @Html.AntiForgeryToken()
+                <div class="modal-body" style="padding:28px;">
+                    <div class="lbl">@booking.Reference</div>
+                    <h2 class="h-sec mt-1 mb-3" id="status-title-@booking.BookingId">Change booking status</h2>
+                    <div class="field">
+                        <label for="bs-@booking.BookingId">New status</label>
+                        <select name="booking_status" id="bs-@booking.BookingId" class="inp" required>
+                            @foreach (var s in new[] { "Pending", "Accepted", "Rejected", "Completed", "Cancelled" })
+                            {
+                                <option value="@s" @(booking.BookingStatus == s ? "selected" : "")>@s</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="field mb-0">
+                        <label for="br-@booking.BookingId">Reason / note (optional)</label>
+                        <textarea name="reason" id="br-@booking.BookingId" class="inp inp-area" rows="2" maxlength="500" placeholder="Why the status is being changed. Kept in the admin log."></textarea>
+                    </div>
+                </div>
+                <div class="modal-foot d-flex gap-2">
+                    <button type="button" class="btn btn-w-ghost flex-grow-1" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-w flex-grow-1">Save</button>
+                </div>
+            </form>
+        </div></div>
+    </div>
+}

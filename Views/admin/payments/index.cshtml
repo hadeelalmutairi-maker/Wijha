@@ -1,0 +1,126 @@
+@using Wijha.Models
+@using Wijha.Support
+@{
+    Layout = "~/Views/layouts/_admin.cshtml";
+    ViewBag.Title = "Payments | Admin | Wijha";
+    var payments = (LengthAwarePaginator<Payment>)ViewBag.Payments;
+    var counts = (Dictionary<string, int>)ViewBag.Counts;
+    string q = ViewBag.Q as string ?? "";
+    string status = ViewBag.Status as string ?? "All";
+    var range = ViewBag.Range as Wijha.Support.DateRange;
+    var statusMap = new Dictionary<string, string> {
+        ["Pending"] = "b-warn", ["Paid"] = "b-ok", ["Failed"] = "b-err", ["Refunded"] = "b-grey"
+    };
+    var errors = new Wijha.Support.Http.ErrorBag(ViewContext);
+}
+<div class="page-pad">
+    @await Html.PartialAsync("~/Views/partials/_flash.cshtml")
+    @if (errors.Has("refund_amount"))
+    {
+        <div class="alert-w a-err mb-3"><i class="bi bi-exclamation-circle-fill"></i><div><strong>The refund was not processed.</strong> @errors.First("refund_amount")</div></div>
+    }
+
+    @await Html.PartialAsync("~/Views/components/_admin-head.cshtml", (object)new {
+        eyebrow = "Manage",
+        title = "Payments",
+        subtitle = "Every checkout on Wijha, with invoices and refunds.",
+        actions = new[] {
+            new { href = Url.RouteUrl("admin.reports.earnings"), cls = "btn-w-ghost", icon = "cash-stack", label = "Earnings report" }
+        }
+    })
+
+    <form method="GET" action="@Url.RouteUrl("admin.payments.index")" class="a-filters">
+        <input type="hidden" name="status" value="@(status == "All" ? "" : status)">
+        <div class="date-filter">
+            <div class="date-filter-field f-search">
+                <label class="lbl d-block mb-2" for="q">Search</label>
+                <div class="inp-icon"><i class="bi bi-search"></i>
+                    <input type="search" name="q" id="q" class="inp" value="@q" placeholder="Invoice, transaction, customer, provider"></div>
+            </div>
+            @{ ViewContext.ViewData["range"] = range; ViewContext.ViewData["label"] = "Payment date"; ViewContext.ViewData["id"] = "pay"; }
+            @await Html.PartialAsync("~/Views/admin/_date-range.cshtml")
+            <button type="submit" class="btn btn-w btn-sm-w date-filter-btn">Apply</button>
+            @if (q != "" || range?.Key != "all")
+            {
+                <a href="@Url.RouteUrl("admin.payments.index")" class="btn btn-w-ghost btn-sm-w date-filter-btn">Clear</a>
+            }
+        </div>
+    </form>
+
+    <div class="d-flex gap-2 flex-wrap mb-3">
+        @foreach (var kv in counts)
+        {
+            <a href="@Url.RouteUrl("admin.payments.index", kv.Key == "All" ? (object)new { } : new { status = kv.Key })"
+               class="chip btn-sm-w @(status == kv.Key ? "chip-on" : "")">@kv.Key (@kv.Value)</a>
+        }
+    </div>
+
+    <div class="a-table-wrap">
+        <table class="a-table" style="min-width:860px;">
+            <thead><tr><th>Date</th><th>Invoice</th><th>Customer</th><th>Provider</th><th class="num">Amount</th><th>Status</th><th class="num">Actions</th></tr></thead>
+            <tbody>
+            @if (payments.Items.Any())
+            {
+                @foreach (var payment in payments.Items)
+                {
+                    <tr>
+                        <td style="white-space:nowrap;">@payment.PaymentDate.ToString("j MMM yyyy")<div class="sub">@payment.PaymentDate.ToString("HH:mm")</div></td>
+                        <td style="white-space:nowrap;"><strong>@payment.InvoiceNumber</strong><div class="sub">@payment.Booking?.Reference</div></td>
+                        <td>@payment.Booking?.Customer?.FirstName @payment.Booking?.Customer?.LastName</td>
+                        <td>@payment.Booking?.ProviderService?.ServiceProvider?.BusinessName<div class="sub">@payment.Booking?.ProviderService?.OfferingTitle</div></td>
+                        <td class="num"><strong>SAR @payment.Amount.ToString("N2")</strong>
+                            @if (payment.PaymentStatus == "Refunded") { <div class="sub" style="color:#9C4A3C;">− SAR @payment.RefundAmount?.ToString("N2") refunded</div> }</td>
+                        <td><span class="badge-w @(statusMap.GetValueOrDefault(payment.PaymentStatus, "b-grey"))">@payment.PaymentStatus</span></td>
+                        <td><div class="a-actions">
+                            @if (payment.PaymentStatus is "Paid" or "Refunded")
+                            {
+                                <a href="@Url.RouteUrl("invoice.show", new { id = payment.BookingId })" target="_blank" class="btn btn-w-ghost btn-sm-w" title="Print invoice"><i class="bi bi-printer"></i></a>
+                            }
+                            @if (payment.PaymentStatus == "Paid")
+                            {
+                                <button type="button" class="btn btn-w-ghost btn-sm-w" style="color:var(--w-danger);" data-bs-toggle="modal" data-bs-target="#refund-@payment.PaymentId">Refund</button>
+                            }
+                        </div></td>
+                    </tr>
+                }
+            }
+            else
+            {
+                <tr><td colspan="7" class="a-empty"><i class="bi bi-credit-card d-block mb-2" style="font-size:26px;"></i>No payments match these filters.</td></tr>
+            }
+            </tbody>
+        </table>
+    </div>
+    <div class="mt-3">@Html.Raw(payments.Links())</div>
+</div>
+
+@foreach (var payment in payments.Items)
+{
+    @if (payment.PaymentStatus == "Paid")
+    {
+        <div class="modal fade" id="refund-@payment.PaymentId" tabindex="-1" aria-labelledby="refund-title-@payment.PaymentId">
+            <div class="modal-dialog"><div class="modal-content" style="border-radius:var(--r-xl);border:0;">
+                <form method="POST" action="@Url.RouteUrl("admin.payments.refund", new { id = payment.PaymentId })"
+                      data-confirm="SAR {refund_amount} will be refunded to @payment.Booking?.Customer?.FirstName for @payment.InvoiceNumber. The invoice will be marked as Refunded. This cannot be undone."
+                      data-confirm-title="Process this refund?" data-confirm-ok="Refund" data-confirm-tone="danger">
+                    @Html.AntiForgeryToken()
+                    <div class="modal-body" style="padding:28px;">
+                        <div class="lbl">@payment.InvoiceNumber</div>
+                        <h2 class="h-sec mt-1 mb-3" id="refund-title-@payment.PaymentId">Refund payment</h2>
+                        <div class="sum-row"><span class="k">Customer</span><span class="v">@payment.Booking?.Customer?.FirstName @payment.Booking?.Customer?.LastName</span></div>
+                        <div class="sum-row"><span class="k">Paid</span><span class="v">SAR @payment.Amount.ToString("N2")</span></div>
+                        <div class="field mt-3 mb-0">
+                            <label for="ra-@payment.PaymentId">Refund amount (SAR)</label>
+                            <input type="number" name="refund_amount" id="ra-@payment.PaymentId" class="inp" min="0.01" max="@payment.Amount" step="0.01" value="@payment.Amount" required>
+                            <div class="help">Up to SAR @payment.Amount.ToString("N2").</div>
+                        </div>
+                    </div>
+                    <div class="modal-foot d-flex gap-2">
+                        <button type="button" class="btn btn-w-ghost flex-grow-1" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-w-danger-fill flex-grow-1">Continue</button>
+                    </div>
+                </form>
+            </div></div>
+        </div>
+    }
+}

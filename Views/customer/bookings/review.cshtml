@@ -1,0 +1,140 @@
+@using Wijha.Models
+@using Wijha.Helpers
+@{
+    Layout = "~/Views/layouts/_customer.cshtml";
+    ViewBag.Title = "Review your booking | Wijha";
+    var providerService = (ProviderService)ViewBag.ProviderService;
+    var provider = (ServiceProvider)ViewBag.Provider;
+    var myEvent = (CustomerEvent?)ViewBag.MyEvent;
+    var data = (Dictionary<string,string?>)ViewBag.Data;
+    decimal agreedPrice = ViewBag.AgreedPrice ?? 0m;
+    string? serviceEnd = ViewBag.ServiceEnd;
+    var customer = (Customer)ViewBag.CurrentCustomer;
+    string? duration = providerService.DurationHours.HasValue ? providerService.DurationHours.Value.ToString("G") : null;
+    DateOnly serviceDate = DateOnly.Parse(data["service_date"]!);
+}
+<div class="page-pad-top">
+    @await Html.PartialAsync("~/Views/components/_booking-stepper.cshtml", (object)new { step = 3 })
+    <h1 class="h-pg">Review your booking</h1>
+    <p class="muted mt-2" style="font-size:15px;">Check everything before it is sent to the provider.</p>
+</div>
+
+<div class="page-pad" style="padding-top:26px;">
+<div class="row g-4">
+    <div class="col-lg-8">
+        @await Html.PartialAsync("~/Views/partials/_flash.cshtml")
+
+        <div class="card-w mb-3" style="padding:28px;">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h2 class="h-sec mb-0">Service</h2>
+                <a href="@Url.RouteUrl("customer.bookings.create", new { provider_service_id = providerService.ProviderServiceId })" style="font-size:14px;font-weight:700;color:var(--w-green-700);">Edit</a>
+            </div>
+            <div class="d-flex gap-3">
+                <div style="width:96px;height:76px;border-radius:var(--r-md);overflow:hidden;flex:none;">
+                    @if (providerService.PortfolioUrl != null || provider.LogoUrl != null)
+                    {
+                        <img src="@WijhaHelpers.ImageUrl(providerService.PortfolioUrl ?? provider.LogoUrl!)" alt="@providerService.OfferingTitle" style="width:100%;height:100%;object-fit:cover;display:block;">
+                    }
+                    else
+                    {
+                        @await Html.PartialAsync("~/Views/components/_decor-photo.cshtml", (object)new { seed = providerService.ProviderServiceId, height = "100%" })
+                    }
+                </div>
+                <div class="flex-grow-1">
+                    <h3 class="h-card">@providerService.OfferingTitle</h3>
+                    <div class="muted" style="font-size:14px;">@provider.BusinessName &middot; @providerService.Service?.ServiceName &middot; @provider.City
+                        &middot; <span class="rate"><i class="bi bi-star-fill"></i>@provider.AverageRating.ToString("F1")</span></div>
+                    <div class="d-flex gap-2 flex-wrap mt-3">
+                        @if (duration != null) { <span class="chip btn-sm-w">@duration hour@(duration == "1" ? "" : "s")</span> }
+                        <span class="chip btn-sm-w">@providerService.PriceUnit price</span>
+                        <span class="chip btn-sm-w">@providerService.ServiceCity</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card-w mb-3" style="padding:28px;">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h2 class="h-sec mb-0">Occasion</h2>
+                <a href="@Url.RouteUrl("customer.bookings.details", new { provider_service_id = providerService.ProviderServiceId, date = data["service_date"], time = data["service_time"] })" style="font-size:14px;font-weight:700;color:var(--w-green-700);">Edit</a>
+            </div>
+            <div class="row">
+                <div class="col-12 col-sm-6">
+                    @if (myEvent != null)
+                    {
+                        <div class="sum-row"><span class="k">Event</span><span class="v">@myEvent.EventName</span></div>
+                        <div class="sum-row"><span class="k">Event type</span><span class="v">@myEvent.EventType</span></div>
+                    }
+                    else
+                    {
+                        <div class="sum-row"><span class="k">Event</span><span class="v">Standalone booking</span></div>
+                    }
+                    <div class="sum-row"><span class="k">Service date</span><span class="v">@serviceDate.ToString("dddd, dd MMM yyyy")</span></div>
+                    <div class="sum-row"><span class="k">Service time</span><span class="v">@data["service_time"]@(serviceEnd != null ? $" – {serviceEnd}" : "")</span></div>
+                </div>
+                <div class="col-12 col-sm-6">
+                    <div class="sum-row"><span class="k">Guests</span><span class="v">@(data.ContainsKey("guest_count") && data["guest_count"] != null ? data["guest_count"] : "Not given")</span></div>
+                    <div class="sum-row"><span class="k">Quantity</span><span class="v">@data["quantity"]</span></div>
+                    <div class="sum-row"><span class="k">Booked by</span><span class="v">@customer.FirstName @customer.LastName</span></div>
+                    <div class="sum-row"><span class="k">Phone</span><span class="v">@customer.Phone</span></div>
+                </div>
+            </div>
+            <hr class="divider my-3">
+            <div class="lbl mb-2">Venue address</div>
+            <p class="mb-3" style="font-size:15px;color:var(--w-green-700);">@data["venue_address"]</p>
+            @if (!string.IsNullOrEmpty(data.GetValueOrDefault("special_requirements")))
+            {
+                <div class="lbl mb-2">Special requirements</div>
+                <p class="mb-0" style="font-size:15px;line-height:1.65;color:var(--w-green-700);">@data["special_requirements"]</p>
+            }
+        </div>
+
+        <div class="card-w" style="padding:28px;">
+            <h2 class="h-sec mb-3">What happens after you submit</h2>
+            <div class="tl">
+                <div class="ti done"><div style="font-weight:700;font-size:15px;">Booking sent to @provider.BusinessName</div>
+                    <div class="muted" style="font-size:13.5px;">Status becomes Pending. The provider is notified immediately.</div></div>
+                <div class="ti now"><div style="font-weight:700;font-size:15px;">Provider accepts or rejects</div>
+                    <div class="muted" style="font-size:13.5px;">You can still edit the details for 24 hours after submitting.</div></div>
+                <div class="ti"><div style="font-weight:700;font-size:15px;">You pay and get an invoice</div>
+                    <div class="muted" style="font-size:13.5px;">Payment is only taken after the provider accepts.</div></div>
+                <div class="ti"><div style="font-weight:700;font-size:15px;">Rate the provider after the event</div>
+                    <div class="muted" style="font-size:13.5px;">Reviews can only be written once the booking is completed.</div></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card-w" style="padding:26px;">
+            <div class="lbl mb-3">Price</div>
+            <div class="sum-row"><span class="k">Service price</span><span class="v">SAR @providerService.Price.ToString("N2")</span></div>
+            <div class="sum-row"><span class="k">Quantity</span><span class="v">&times; @data["quantity"]</span></div>
+            <div class="sum-row"><span class="k">Platform fee</span><span class="v">SAR 0.00</span></div>
+            <hr class="divider my-3">
+            <div class="sum-row"><span class="k" style="font-size:16px;">Total</span><span class="price" style="font-size:28px;">SAR @agreedPrice.ToString("N0")</span></div>
+
+            <div class="alert-w a-info mt-3" style="font-size:13.5px;">
+                <i class="bi bi-clock-history" style="font-size:16px;"></i>
+                <div>You can change the date, time, venue, guests and requirements for <strong>24 hours</strong> after submitting.</div>
+            </div>
+
+            <form method="post" action="@Url.RouteUrl("customer.bookings.store")">
+                @Html.AntiForgeryToken()
+                @foreach (var kv in data)
+                {
+                    if (kv.Value != null) { <input type="hidden" name="@kv.Key" value="@kv.Value"> }
+                }
+
+                <label class="remember-check" style="align-items:flex-start;font-size:13.5px;line-height:1.55;margin:16px 0 18px;">
+                    <input type="checkbox" required>
+                    <span class="box" style="margin-top:1px;"><i class="bi bi-check-lg"></i></span>
+                    <span>I accept the <span class="terms-link">cancellation policy</span> and the Terms of Use.</span>
+                </label>
+
+                <button type="submit" class="btn btn-w btn-block btn-lg-w">Submit booking</button>
+            </form>
+            <p class="muted text-center mt-3 mb-0" style="font-size:13px;">You will not be charged yet.</p>
+        </div>
+    </div>
+</div>
+</div>

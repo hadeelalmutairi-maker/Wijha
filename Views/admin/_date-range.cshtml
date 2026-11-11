@@ -1,0 +1,56 @@
+@{
+    string fid = ViewContext.ViewData["id"] as string ?? "period";
+    var range = ViewContext.ViewData["range"] as Wijha.Support.DateRange;
+    string label = ViewContext.ViewData["label"] as string ?? "Period";
+    bool isCustom = range?.Key == "custom";
+}
+<div class="date-filter-field">
+    <label class="lbl d-block mb-2" for="@(fid)-range">@label</label>
+    <div class="inp-icon"><i class="bi bi-calendar3"></i>
+        <select name="range" id="@(fid)-range" class="inp" data-range-select="@fid">
+            @foreach (var preset in Wijha.Support.DateRange.Presets)
+            {
+                <option value="@preset.Key" @(range?.Key == preset.Key ? "selected" : "")>@preset.Value</option>
+            }
+            <option value="custom" @(isCustom ? "selected" : "")>Custom range&hellip;</option>
+        </select></div>
+</div>
+<div class="date-filter-custom @(isCustom ? "" : "d-none")" id="@(fid)-custom">
+    <div class="date-filter-field">
+        <label class="lbl d-block mb-2" for="@(fid)-from">From</label>
+        <input type="date" name="from" id="@(fid)-from" class="inp" value="@(isCustom ? range?.From?.ToString("yyyy-MM-dd") : "")" @(isCustom ? "" : "disabled")>
+    </div>
+    <div class="date-filter-field">
+        <label class="lbl d-block mb-2" for="@(fid)-to">To</label>
+        <input type="date" name="to" id="@(fid)-to" class="inp" value="@(isCustom ? range?.To?.ToString("yyyy-MM-dd") : "")" min="@(isCustom ? range?.From?.ToString("yyyy-MM-dd") : "")" @(isCustom ? "" : "disabled")>
+    </div>
+</div>
+
+@section scripts {
+<script>
+(function () {
+    if (window._dateRangeScriptLoaded) return;
+    window._dateRangeScriptLoaded = true;
+    document.querySelectorAll('[data-range-select]').forEach(function (select) {
+        const id = select.dataset.rangeSelect;
+        const custom = document.getElementById(id + '-custom');
+        const from = document.getElementById(id + '-from');
+        const to = document.getElementById(id + '-to');
+        select.addEventListener('change', function () {
+            const isCustom = select.value === 'custom';
+            custom.classList.toggle('d-none', !isCustom);
+            from.disabled = to.disabled = !isCustom;
+            if (isCustom) { from.focus(); return; }
+            select.form.submit();
+        });
+        from.addEventListener('change', function () {
+            to.min = from.value;
+            if (to.value && from.value && to.value < from.value) to.value = from.value;
+        });
+        select.form.addEventListener('submit', function (e) {
+            if (select.value === 'custom' && !from.value && !to.value) { e.preventDefault(); from.focus(); }
+        });
+    });
+})();
+</script>
+}

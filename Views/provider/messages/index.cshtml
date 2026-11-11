@@ -1,0 +1,158 @@
+@using Wijha.Models
+@{
+    Layout = "~/Views/layouts/_provider.cshtml";
+    var customer = ViewBag.Customer as Customer;
+    var threads = (IEnumerable<Message>)ViewBag.Threads;
+    var messages = (IEnumerable<Message>)ViewBag.Messages ?? Enumerable.Empty<Message>();
+    var booking = ViewBag.Booking as Booking;
+    ViewBag.Title = customer != null ? $"Chat with {customer.FirstName} | Wijha" : "Messages | Wijha";
+    var lastOwn = messages.Where(m => m.SenderType == "Provider").LastOrDefault();
+}
+<div class="d-flex chat-shell">
+    <div class="chat-sidebar" style="overflow:auto;">
+        <h2 class="h-sec mb-3" style="font-size:24px;">Messages</h2>
+        @if (threads.Count() > 1)
+        {
+            <div class="inp-icon mb-3"><i class="bi bi-search"></i>
+                <input type="search" class="inp" id="thread-search" placeholder="Search a customer" aria-label="Search a customer"></div>
+        }
+        @if (threads.Any())
+        {
+            @foreach (var msg in threads)
+            {
+                bool isOn = customer != null && customer.CustomerId == msg.CustomerId;
+                string initials = msg.Customer != null ? $"{msg.Customer.FirstName[0]}{msg.Customer.LastName[0]}".ToUpper() : "??";
+                string timeLabel = msg.SentAt.Date == DateTime.Today ? msg.SentAt.ToString("HH:mm") : (msg.SentAt.Date == DateTime.Today.AddDays(-1) ? "Yesterday" : msg.SentAt.ToString("j MMM"));
+                int unreadCount = msg.UnreadCount ?? 0;
+                <a href="@Url.RouteUrl("provider.messages.show", new { id = msg.CustomerId })" data-name="@msg.Customer?.FirstName?.ToLower() @msg.Customer?.LastName?.ToLower()"
+                   class="chat-thread @(isOn ? "chat-thread-on" : "")">
+                    <div class="av @(isOn ? "" : "av-soft")">@initials</div>
+                    <div class="flex-grow-1" style="min-width:0;">
+                        <div class="d-flex justify-content-between gap-2">
+                            <div class="chat-thread-name">@msg.Customer?.FirstName @msg.Customer?.LastName</div>
+                            <span class="muted flex-none" style="font-size:12px;">@timeLabel</span>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center gap-2">
+                            <div class="muted chat-thread-last @(!isOn && unreadCount > 0 ? "unread" : "")">@(msg.SenderType == "Provider" ? "You: " : "")@msg.MessageText</div>
+                            @if (!isOn && unreadCount > 0)
+                            {
+                                <span class="chat-unread" aria-label="@unreadCount unread">@unreadCount</span>
+                            }
+                        </div>
+                    </div>
+                </a>
+            }
+        }
+        else
+        {
+            <p class="muted">No conversations yet.</p>
+        }
+        <p class="muted d-none" id="thread-none" style="font-size:14px;">No customer matches that name.</p>
+    </div>
+
+    @if (customer != null)
+    {
+        <div class="flex-grow-1 d-flex flex-column" style="min-width:0;">
+            <div class="chat-head">
+                <div class="d-flex gap-3 align-items-center" style="min-width:0;">
+                    <div class="av">@($"{customer.FirstName[0]}{customer.LastName[0]}".ToUpper())</div>
+                    <div style="min-width:0;">
+                        <div style="font-weight:700;font-size:16px;">@customer.FirstName @customer.LastName</div>
+                        @if (booking != null)
+                        {
+                            <div class="muted text-truncate" style="font-size:13px;">About request @booking.Reference &middot; @booking.ProviderService?.OfferingTitle</div>
+                        }
+                    </div>
+                </div>
+                @if (booking != null)
+                {
+                    <div class="d-flex gap-2 align-items-center flex-wrap">
+                        @if (booking.BookingStatus == "Pending")
+                        {
+                            <span class="badge-w b-warn"><i class="bi bi-hourglass-split"></i> Pending your reply</span>
+                        }
+                        else
+                        {
+                            <span class="badge-w b-grey">@booking.BookingStatus</span>
+                        }
+                        <a href="@Url.RouteUrl("provider.bookings.show", new { id = booking.BookingId })" class="btn btn-w-ghost btn-sm-w">Open request</a>
+                    </div>
+                }
+            </div>
+
+            <div class="flex-grow-1 chat-body" id="chat-body">
+                @{
+                    string? lastDay = null;
+                }
+                @if (messages.Any())
+                {
+                    @foreach (var message in messages)
+                    {
+                        string dateStr = message.SentAt.ToString("yyyy-MM-dd");
+                        if (dateStr != lastDay)
+                        {
+                            string dayLabel = message.SentAt.Date == DateTime.Today ? "Today" : (message.SentAt.Date == DateTime.Today.AddDays(-1) ? "Yesterday" : message.SentAt.ToString("j MMMM yyyy"));
+                            <div class="chat-day"><span>@dayLabel</span></div>
+                            lastDay = dateStr;
+                        }
+                        bool isMine = message.SenderType == "Provider";
+                        bool isLastOwn = lastOwn != null && message.MessageId == lastOwn.MessageId;
+                        <div class="mb-3" style="display:flex;flex-direction:column;align-items:@(isMine ? "flex-end" : "flex-start");">
+                            <div class="msg @(isMine ? "msg-out" : "msg-in")">@message.MessageText</div>
+                            <div class="msg-time">
+                                @(isMine ? "You" : customer.FirstName) &middot; @message.SentAt.ToString("HH:mm")
+                                @if (isMine && isLastOwn && message.IsRead) { <text>&middot; <i class="bi bi-check2-all"></i> Read</text> }
+                            </div>
+                        </div>
+                    }
+                }
+                else
+                {
+                    <p class="muted text-center">No messages yet.</p>
+                }
+            </div>
+
+            <form method="post" action="@Url.RouteUrl("provider.messages.store", new { id = customer.CustomerId })" class="chat-compose">
+                @Html.AntiForgeryToken()
+                <input type="text" name="message_text" class="inp flex-grow-1" maxlength="1000" placeholder="Write a message to @customer.FirstName" required aria-label="Message">
+                <button type="submit" class="btn btn-w" aria-label="Send"><i class="bi bi-send-fill"></i></button>
+            </form>
+        </div>
+    }
+    else
+    {
+        <div class="flex-grow-1 d-flex flex-column align-items-center justify-content-center text-center" style="padding:40px 20px;">
+            @if (!threads.Any())
+            {
+                @await Html.PartialAsync("~/Views/components/_empty-inbox.cshtml")
+                <p class="lead-w mt-4">No conversations yet. Messages from customers will appear here.</p>
+            }
+            else
+            {
+                <i class="bi bi-chat-square-text" style="font-size:40px;color:var(--w-green-400);"></i>
+                <p class="muted mt-3">Open a conversation on the left to view messages.</p>
+            }
+        </div>
+    }
+</div>
+
+@section scripts {
+<script>
+(function () {
+    const body = document.getElementById('chat-body');
+    if (body) body.scrollTop = body.scrollHeight;
+    const search = document.getElementById('thread-search');
+    if (!search) return;
+    search.addEventListener('input', function () {
+        const q = search.value.trim().toLowerCase();
+        let shown = 0;
+        document.querySelectorAll('.chat-thread').forEach(function (t) {
+            const hit = t.dataset.name.indexOf(q) !== -1;
+            t.classList.toggle('d-none', !hit);
+            if (hit) shown++;
+        });
+        document.getElementById('thread-none').classList.toggle('d-none', shown > 0);
+    });
+})();
+</script>
+}

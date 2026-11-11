@@ -1,0 +1,87 @@
+@using Wijha.Models
+@using Wijha.Support.Http
+@model dynamic
+@{
+    var service = Model?.service as ProviderService;
+    var services = (IEnumerable<Service>)ViewBag.Services;
+    var categories = (IEnumerable<ServiceCategory>)ViewBag.ProviderCategories;
+    var errors = new ErrorBag(ViewContext);
+}
+<div class="field">
+    <label for="service_id">Service type <span style="color:var(--w-danger);">*</span></label>
+    <select name="service_id" id="service_id" class="inp @(errors.Has("service_id") ? "inp-err" : "")" required>
+        <option value="">Select a service type</option>
+        @foreach (var s in services)
+        {
+            string oldVal = Flash.Old(ViewContext.HttpContext, "service_id") ?? service?.ServiceId.ToString();
+            <option value="@s.ServiceId" @(oldVal == s.ServiceId.ToString() ? "selected" : "")>@s.ServiceName</option>
+        }
+    </select>
+    @if (errors.Has("service_id")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("service_id")</div> }
+</div>
+
+<div class="field">
+    <label for="service_category_id">Category (optional)</label>
+    <select name="service_category_id" id="service_category_id" class="inp @(errors.Has("service_category_id") ? "inp-err" : "")">
+        <option value="">No category</option>
+        @foreach (var cat in categories)
+        {
+            string oldCat = Flash.Old(ViewContext.HttpContext, "service_category_id") ?? service?.ServiceCategoryId?.ToString();
+            <option value="@cat.ServiceCategoryId" @(oldCat == cat.ServiceCategoryId.ToString() ? "selected" : "")>@cat.CategoryName</option>
+        }
+    </select>
+    @if (errors.Has("service_category_id")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("service_category_id")</div> }
+</div>
+
+<div class="field">
+    <label for="offering_title">Service title <span style="color:var(--w-danger);">*</span></label>
+    <input type="text" name="offering_title" id="offering_title" class="inp @(errors.Has("offering_title") ? "inp-err" : "")"
+           value="@(Flash.Old(ViewContext.HttpContext, "offering_title") ?? service?.OfferingTitle)" required maxlength="150" placeholder="Full-Day Wedding Coverage">
+    @if (errors.Has("offering_title")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("offering_title")</div> }
+</div>
+
+<div class="field">
+    <label for="offering_description">Description</label>
+    <textarea name="offering_description" id="offering_description" class="inp inp-area @(errors.Has("offering_description") ? "inp-err" : "")"
+              rows="3" maxlength="1000">@(Flash.Old(ViewContext.HttpContext, "offering_description") ?? service?.OfferingDescription)</textarea>
+    @if (errors.Has("offering_description")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("offering_description")</div> }
+</div>
+
+<div class="row g-3">
+    <div class="col-4"><div class="field">
+        <label for="price">Price (SAR) <span style="color:var(--w-danger);">*</span></label>
+        <input type="number" name="price" id="price" class="inp @(errors.Has("price") ? "inp-err" : "")"
+               value="@(Flash.Old(ViewContext.HttpContext, "price") ?? service?.Price.ToString())" required min="0" step="0.01">
+        @if (errors.Has("price")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("price")</div> }
+    </div></div>
+    <div class="col-4"><div class="field">
+        <label for="price_unit">Price unit <span style="color:var(--w-danger);">*</span></label>
+        <select name="price_unit" id="price_unit" class="inp @(errors.Has("price_unit") ? "inp-err" : "")" required>
+            @foreach (var unit in new[] { "Fixed", "Per Hour", "Per Guest", "Per Item" })
+            {
+                string oldUnit = Flash.Old(ViewContext.HttpContext, "price_unit") ?? service?.PriceUnit;
+                <option value="@unit" @(oldUnit == unit ? "selected" : "")>@unit</option>
+            }
+        </select>
+        @if (errors.Has("price_unit")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("price_unit")</div> }
+    </div></div>
+    <div class="col-4"><div class="field">
+        <label for="duration_hours">Duration (hours)</label>
+        <input type="number" name="duration_hours" id="duration_hours" class="inp @(errors.Has("duration_hours") ? "inp-err" : "")"
+               value="@(Flash.Old(ViewContext.HttpContext, "duration_hours") ?? service?.DurationHours?.ToString())" min="0" step="0.5">
+        @if (errors.Has("duration_hours")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("duration_hours")</div> }
+    </div></div>
+</div>
+
+<div class="field">
+    <label for="service_city">Service city <span style="color:var(--w-danger);">*</span></label>
+    <input type="text" name="service_city" id="service_city" class="inp @(errors.Has("service_city") ? "inp-err" : "")"
+           value="@(Flash.Old(ViewContext.HttpContext, "service_city") ?? service?.ServiceCity)" required maxlength="60">
+    @if (errors.Has("service_city")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("service_city")</div> }
+</div>
+
+<div class="field">
+    <label for="portfolio">Portfolio file (image or PDF)</label>
+    <input type="file" name="portfolio" id="portfolio" class="inp @(errors.Has("portfolio") ? "inp-err" : "")" accept="image/png,image/jpeg,application/pdf">
+    @if (errors.Has("portfolio")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("portfolio")</div> }
+</div>

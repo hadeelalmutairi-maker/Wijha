@@ -1,0 +1,29 @@
+@using Wijha.Support.Auth
+@{
+    var admin = Auth.Guard(ViewContext.HttpContext, "admin").User<Wijha.Models.Admin>()!;
+}
+<div class="nav-w">
+    <a href="@Url.RouteUrl("admin.dashboard")" class="logo-row">
+        @await Html.PartialAsync("~/Views/components/_logo.cshtml", new { dark = true, size = 58 })
+        <div>
+            <div class="logo-txt">Wijha</div>
+            <div class="logo-sub">Admin Console</div>
+        </div>
+    </a>
+    <div class="nav-links">
+        <a href="@Url.RouteUrl("admin.providers.index")">Providers</a>
+        <a href="@Url.RouteUrl("admin.customers.index")">Customers</a>
+        <a href="@Url.RouteUrl("admin.services.index")">Services</a>
+        <a href="@Url.RouteUrl("admin.bookings.index")">Bookings</a>
+        <a href="@Url.RouteUrl("admin.reviews.index")">Reviews</a>
+        <a href="@Url.RouteUrl("admin.payments.index")">Payments</a>
+    </div>
+    <div class="d-flex align-items-center gap-3">
+        <span class="muted" style="font-size:14px;">@admin.FullName</span>
+        <div class="av">@admin.FullName.Substring(0, 1).ToUpperInvariant()</div>
+        <form method="post" action="@Url.RouteUrl("admin.logout")">
+            @Html.AntiForgeryToken()
+            <button type="submit" class="btn btn-w-ghost btn-sm-w">Log out</button>
+        </form>
+    </div>
+</div>

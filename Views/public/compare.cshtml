@@ -1,0 +1,163 @@
+@using Wijha.Models
+@using Wijha.Helpers
+@{
+    bool isCustomer = ViewBag.IsCustomerAuth == true;
+    Layout = isCustomer ? "~/Views/layouts/_customer.cshtml" : "~/Views/layouts/_public.cshtml";
+    ViewBag.Title = "Compare | Wijha";
+    var services = (IEnumerable<ProviderService>)ViewBag.Services;
+    int? bestId = ViewBag.BestId as int?;
+    var nextAvailable = (Dictionary<int, dynamic>)ViewBag.NextAvailable;
+}
+
+@await Html.PartialAsync("~/Views/components/_photo-hero.cshtml", (object)new { image = "table", eyebrow = "Compare providers", title = "Find the Best Provider for Your Event", subtitle = "Compare service providers side by side to choose the one that fits your needs, budget, and schedule." })
+
+<div class="crumbs"><a href="@Url.RouteUrl("providers.index")">Discover</a> <i class="bi bi-chevron-right" style="font-size:10px;"></i> <span class="cur">Compare</span></div>
+
+<div style="padding:20px 48px 56px;">
+    @await Html.PartialAsync("~/Views/partials/_flash.cshtml")
+
+    <div class="d-flex justify-content-between align-items-end mb-4 flex-wrap gap-3">
+        <div>
+            <h2 class="h-pg">Compare @services.Count() @(services.Count() == 1 ? "offering" : "offerings")</h2>
+            <p class="muted mt-2 mb-0" style="font-size:15px;">Services you've queued up from provider pages.</p>
+        </div>
+        @if (services.Any())
+        {
+            <form method="POST" action="@Url.RouteUrl("compare.clear")" onsubmit="return confirm('Clear your comparison list?');">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="_method" value="DELETE">
+                <button type="submit" class="btn btn-w-ghost"><i class="bi bi-x-lg me-2"></i>Clear comparison</button>
+            </form>
+        }
+    </div>
+
+    @if (!services.Any())
+    {
+        <div class="card-w text-center" style="padding:70px 40px;">
+            @await Html.PartialAsync("~/Views/components/_empty-search.cshtml")
+            <h2 class="h-sec mt-4">Nothing to compare yet</h2>
+            <p class="lead-w mt-3" style="max-width:460px;margin:0 auto;">Open a provider's page and tap the compare icon on up to 3 services to see them side by side here.</p>
+            <a href="@Url.RouteUrl("providers.index")" class="btn btn-w btn-lg-w mt-4">Browse services</a>
+        </div>
+    }
+    else
+    {
+        <div class="card-w" style="overflow:hidden;">
+            <div style="overflow-x:auto;">
+            <table class="cmp">
+                <tr>
+                    <th class="rowh" style="border-radius:var(--r-lg) 0 0 0;">Offering</th>
+                    @foreach (var ps in services)
+                    {
+                        <td class="@(ps.ProviderServiceId == bestId ? "best" : "")" style="width:300px;">
+                            <div class="d-flex gap-3 align-items-center">
+                                <div class="ph" style="width:72px;height:56px;border-radius:var(--r-sm);overflow:hidden;flex:none;">
+                                    @{ string? thumb = WijhaHelpers.ImageUrl(ps.PortfolioUrl); }
+                                    @if (thumb != null)
+                                    {
+                                        <img src="@thumb" alt="@ps.OfferingTitle" style="width:100%;height:100%;object-fit:cover;display:block;">
+                                    }
+                                    else
+                                    {
+                                        @await Html.PartialAsync("~/Views/components/_decor-photo.cshtml", (object)new { seed = ps.ProviderServiceId, height = "100%" })
+                                    }
+                                </div>
+                                <div>
+                                    <a href="@Url.RouteUrl("providers.show", new { id = ps.ProviderId })" style="font-weight:700;font-size:15.5px;color:var(--w-green-900);text-decoration:none;">@ps.OfferingTitle</a>
+                                    <div class="muted" style="font-size:13px;">@ps.ServiceProvider?.BusinessName</div>
+                                </div>
+                            </div>
+                        </td>
+                    }
+                </tr>
+                <tr><th class="rowh">Price</th>
+                    @foreach (var ps in services)
+                    {
+                        <td class="@(ps.ProviderServiceId == bestId ? "best" : "")">
+                            <span class="price" style="font-size:22px;">SAR @ps.Price.ToString("N0")</span>
+                            <span class="muted" style="font-size:13px;">/ @ps.PriceUnit</span>
+                        </td>
+                    }
+                </tr>
+                <tr><th class="rowh">Rating</th>
+                    @foreach (var ps in services)
+                    {
+                        <td class="@(ps.ProviderServiceId == bestId ? "best" : "")">
+                            <span class="rate"><i class="bi bi-star-fill"></i>@ps.ServiceProvider?.AverageRating.ToString("F1")</span>
+                            <span class="muted">&middot; @ps.ServiceProvider?.TotalReviews reviews</span>
+                        </td>
+                    }
+                </tr>
+                <tr><th class="rowh">Next available</th>
+                    @foreach (var ps in services)
+                    {
+                        <td class="@(ps.ProviderServiceId == bestId ? "best" : "")">
+                            @{
+                                dynamic? slot = nextAvailable.GetValueOrDefault(ps.ProviderServiceId);
+                            }
+                            @if (slot != null)
+                            {
+                                <span class="badge-w b-ok"><i class="bi bi-check-circle-fill"></i> @(((DateOnly)slot.available_date).ToString("dd MMM yyyy"))</span>
+                            }
+                            else
+                            {
+                                <span class="badge-w b-grey">No open dates</span>
+                            }
+                        </td>
+                    }
+                </tr>
+                <tr><th class="rowh">Duration</th>
+                    @foreach (var ps in services)
+                    {
+                        <td class="@(ps.ProviderServiceId == bestId ? "best" : "")">@(ps.DurationHours.HasValue ? ps.DurationHours + " hours" : "Not listed")</td>
+                    }
+                </tr>
+                <tr><th class="rowh">Service city</th>
+                    @foreach (var ps in services)
+                    {
+                        <td class="@(ps.ProviderServiceId == bestId ? "best" : "")">@ps.ServiceCity</td>
+                    }
+                </tr>
+                <tr><th class="rowh">Category</th>
+                    @foreach (var ps in services)
+                    {
+                        <td class="@(ps.ProviderServiceId == bestId ? "best" : "")">@ps.Service?.ServiceName</td>
+                    }
+                </tr>
+                <tr><th class="rowh" style="border-radius:0 0 0 var(--r-lg);">Action</th>
+                    @foreach (var ps in services)
+                    {
+                        <td class="@(ps.ProviderServiceId == bestId ? "best" : "")">
+                            @if (isCustomer)
+                            {
+                                <a href="@Url.RouteUrl("customer.bookings.create", new { provider_service_id = ps.ProviderServiceId })" class="btn @(ps.ProviderServiceId == bestId ? "btn-w" : "btn-w-ghost") btn-block">Check availability</a>
+                            }
+                            else
+                            {
+                                <a href="@Url.RouteUrl("login")" class="btn @(ps.ProviderServiceId == bestId ? "btn-w" : "btn-w-ghost") btn-block">Log in to book</a>
+                            }
+                            <form method="POST" action="@Url.RouteUrl("compare.remove", new { id = ps.ProviderServiceId })" class="mt-2">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="_method" value="DELETE">
+                                <button type="submit" class="btn btn-w-ghost btn-sm-w btn-block" style="color:var(--w-danger);">Remove</button>
+                            </form>
+                        </td>
+                    }
+                </tr>
+            </table>
+            </div>
+        </div>
+
+        @if (bestId.HasValue)
+        {
+            var bestOne = services.FirstOrDefault(ps => ps.ProviderServiceId == bestId);
+            @if (bestOne != null)
+            {
+                <div class="alert-w a-info mt-4" style="max-width:720px;">
+                    <i class="bi bi-lightbulb-fill" style="font-size:18px;"></i>
+                    <div>@bestOne.ServiceProvider?.BusinessName is highlighted because it's the lowest priced of the @services.Count() offerings you're comparing.</div>
+                </div>
+            }
+        }
+    }
+</div>

@@ -1,0 +1,168 @@
+@using Wijha.Models
+@{
+    Layout = "~/Views/layouts/_admin.cshtml";
+    ViewBag.Title = "Admin dashboard | Wijha";
+    var stats = (Dictionary<string, object>)ViewBag.Stats;
+    var statusBreakdown = (Dictionary<string, int>)ViewBag.StatusBreakdown;
+    var recentBookings = (IEnumerable<Booking>)ViewBag.RecentBookings;
+    var monthLabels = (IEnumerable<string>)ViewBag.MonthLabels;
+    var bookingsTrend = (IEnumerable<int>)ViewBag.BookingsTrend;
+    var revenueTrend = (IEnumerable<decimal>)ViewBag.RevenueTrend;
+    var statusMap = new Dictionary<string, string> {
+        ["Pending"] = "b-warn", ["Accepted"] = "b-ok", ["Rejected"] = "b-err", ["Completed"] = "b-grey", ["Cancelled"] = "b-err"
+    };
+    int hour = DateTime.Now.Hour;
+    string greeting = hour < 12 ? "Good morning" : (hour < 17 ? "Good afternoon" : "Good evening");
+    string adminName = ViewBag.AdminName as string ?? "Admin";
+    string firstName = adminName.Contains(' ') ? adminName.Substring(0, adminName.IndexOf(' ')) : adminName;
+    int totalBookings = Math.Max(1, statusBreakdown.Values.Sum());
+    decimal earnMonth = Convert.ToDecimal(stats["earnings_month"]);
+    decimal earnLastMonth = Convert.ToDecimal(stats["earnings_last_month"]);
+    int? earnChange = earnLastMonth != 0 ? (int?)Math.Round((earnMonth - earnLastMonth) / earnLastMonth * 100) : null;
+    int bookMonth = Convert.ToInt32(stats["bookings_month"]);
+    int bookLastMonth = Convert.ToInt32(stats["bookings_last_month"]);
+    int? bookChange = bookLastMonth != 0 ? (int?)Math.Round((double)(bookMonth - bookLastMonth) / bookLastMonth * 100) : null;
+}
+<div class="page-pad">
+    @await Html.PartialAsync("~/Views/partials/_flash.cshtml")
+
+    @await Html.PartialAsync("~/Views/components/_admin-head.cshtml", (object)new {
+        eyebrow = DateTime.Now.ToString("dddd, d MMMM yyyy"),
+        title = $"{greeting}, {firstName}",
+        subtitle = "Here is what is happening on Wijha.",
+        actions = new[] {
+            new { href = Url.RouteUrl("admin.reports.earnings"), cls = "btn-w-ghost", icon = "cash-stack", label = "Earnings report" },
+            new { href = Url.RouteUrl("admin.reports.performance"), cls = "btn-w", icon = "graph-up-arrow", label = "Provider performance" }
+        }
+    })
+
+    <div class="row g-3 mb-3">
+        <div class="col-sm-6 col-xl-3">
+            <a href="@Url.RouteUrl("admin.reports.earnings", new { range = "this_month" })" class="a-kpi">
+                <span class="a-kpi-ico"><i class="bi bi-cash-stack"></i></span>
+                <div><div class="lbl">Earnings this month</div><div class="a-kpi-n">SAR @earnMonth.ToString("N0")</div>
+                    <div class="a-kpi-sub">
+                        @if (earnChange != null) {
+                            <span class="delta @(earnChange >= 0 ? "up" : "down")"><i class="bi bi-arrow-@(earnChange >= 0 ? "up" : "down")-short"></i>@Math.Abs(earnChange.Value)%</span> @:vs last month
+                        } else { @:Net of refunds }
+                    </div></div>
+            </a>
+        </div>
+        <div class="col-sm-6 col-xl-3">
+            <a href="@Url.RouteUrl("admin.bookings.index", new { range = "this_month" })" class="a-kpi">
+                <span class="a-kpi-ico gold"><i class="bi bi-calendar-check"></i></span>
+                <div><div class="lbl">Requests this month</div><div class="a-kpi-n">@bookMonth</div>
+                    <div class="a-kpi-sub">
+                        @if (bookChange != null) { <span class="delta @(bookChange >= 0 ? "up" : "down")">@(bookChange >= 0 ? "+" : "−")@Math.Abs(bookChange.Value)%</span> @:vs last month &middot; }
+                        @Convert.ToInt32(stats["pending_bookings"]) @:pending
+                    </div></div>
+            </a>
+        </div>
+        <div class="col-sm-6 col-xl-3">
+            @{ int pendingProviders = Convert.ToInt32(stats["pending_providers"]); }
+            <a href="@Url.RouteUrl("admin.providers.index", pendingProviders > 0 ? (object)new { view = "Pending" } : new { })" class="a-kpi">
+                <span class="a-kpi-ico @(pendingProviders > 0 ? "red" : "grey")"><i class="bi bi-shop"></i></span>
+                <div><div class="lbl">Providers</div><div class="a-kpi-n">@Convert.ToInt32(stats["approved_providers"])</div>
+                    <div class="a-kpi-sub">@(pendingProviders > 0 ? pendingProviders + " waiting for approval" : "None waiting for approval")</div></div>
+            </a>
+        </div>
+        <div class="col-sm-6 col-xl-3">
+            <a href="@Url.RouteUrl("admin.customers.index")" class="a-kpi">
+                <span class="a-kpi-ico grey"><i class="bi bi-people"></i></span>
+                <div><div class="lbl">Active customers</div><div class="a-kpi-n">@Convert.ToInt32(stats["active_customers"])</div>
+                    <div class="a-kpi-sub">@Convert.ToInt32(stats["blocked_customers"]) blocked &middot; <i class="bi bi-star-fill" style="color:var(--w-sand-400);"></i> @(Convert.ToDecimal(stats["rating"]).ToString("F1")) avg rating</div></div>
+            </a>
+        </div>
+    </div>
+
+    @{ int awaitingPayment = Convert.ToInt32(stats["awaiting_payment"]); }
+    @if (awaitingPayment > 0)
+    {
+        <div class="alert-w a-info mb-3">
+            <i class="bi bi-hourglass-split" style="font-size:18px;"></i>
+            <div><strong>@awaitingPayment accepted @(awaitingPayment == 1 ? "booking" : "bookings") still waiting for the customer to pay.</strong>
+                <a href="@Url.RouteUrl("admin.bookings.index", new { status = "Accepted" })" style="color:inherit;font-weight:700;">Review</a></div>
+        </div>
+    }
+
+    <div class="row g-3 mb-3">
+        <div class="col-lg-6"><div class="a-card">
+            <div class="a-card-head"><div class="lbl">Requests in the last 6 months</div></div>
+            <div style="height:220px;"><canvas id="chart-bookings"></canvas></div>
+        </div></div>
+        <div class="col-lg-6"><div class="a-card">
+            <div class="a-card-head"><div class="lbl">Net earnings in the last 6 months</div>
+                <a href="@Url.RouteUrl("admin.reports.earnings")" class="a-note" style="font-weight:700;">Full report</a></div>
+            <div style="height:220px;"><canvas id="chart-revenue"></canvas></div>
+        </div></div>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-lg-7"><div class="a-card p-0" style="overflow:hidden;">
+            <div class="a-card-head" style="padding:20px 22px 0;"><div class="lbl">Latest requests</div>
+                <a href="@Url.RouteUrl("admin.bookings.index")" class="a-note" style="font-weight:700;">All bookings</a></div>
+            <div class="a-table-wrap">
+                <table class="a-table" style="min-width:560px;">
+                    <thead><tr><th>Booking</th><th>Customer</th><th class="num">Price</th><th>Status</th></tr></thead>
+                    <tbody>
+                    @if (recentBookings.Any())
+                    {
+                        @foreach (var b in recentBookings)
+                        {
+                            <tr>
+                                <td><strong>@b.ProviderService?.OfferingTitle</strong><div class="sub">@b.Reference &middot; @b.ProviderService?.ServiceProvider?.BusinessName</div></td>
+                                <td>@b.Customer?.FirstName @b.Customer?.LastName<div class="sub">Requested @b.BookingDate.ToString("j MMM")</div></td>
+                                <td class="num"><strong>SAR @b.AgreedPrice.ToString("N0")</strong></td>
+                                <td><span class="badge-w @(statusMap.GetValueOrDefault(b.BookingStatus, "b-grey"))">@b.BookingStatus</span></td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr><td colspan="4" class="a-empty">No bookings yet.</td></tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </div></div>
+        <div class="col-lg-5"><div class="a-card">
+            <div class="a-card-head"><div class="lbl">Booking status</div><span class="a-note">@statusBreakdown.Values.Sum() in total</span></div>
+            @foreach (var s in new[] { "Pending", "Accepted", "Completed", "Rejected", "Cancelled" })
+            {
+                int n = statusBreakdown.GetValueOrDefault(s, 0);
+                <a href="@Url.RouteUrl("admin.bookings.index", new { status = s })" class="d-block text-decoration-none mb-3" style="color:inherit;">
+                    <div class="d-flex justify-content-between mb-1">
+                        <span class="badge-w @(statusMap.GetValueOrDefault(s, "b-grey"))">@(s == "Cancelled" ? "Cancelled by customer" : s)</span>
+                        <strong style="font-size:14px;">@n</strong>
+                    </div>
+                    <div class="a-bar @(s == "Pending" ? "gold" : "")">
+                        <span style="width:@(n * 100 / totalBookings)%;@(s is "Rejected" or "Cancelled" ? "background:#C98B7F;" : "")@(s == "Completed" ? "background:#8FA294;" : "")"></span>
+                    </div>
+                </a>
+            }
+        </div></div>
+    </div>
+</div>
+
+@section scripts {
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+(function () {
+    const labels = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(monthLabels));
+    new Chart(document.getElementById('chart-bookings'), {
+        type: 'line',
+        data: { labels: labels, datasets: [{ label: 'Requests', data: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(bookingsTrend)), borderColor: '#3A5240', backgroundColor: 'rgba(58,82,64,.12)', tension: .35, fill: true, pointRadius: 3 }] },
+        options: { maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } }, x: { grid: { display: false } } } },
+    });
+    new Chart(document.getElementById('chart-revenue'), {
+        type: 'bar',
+        data: { labels: labels, datasets: [{ label: 'Net earnings', data: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(revenueTrend)), backgroundColor: '#C9A24B', borderRadius: 6, maxBarThickness: 40 }] },
+        options: {
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (c) { return 'SAR ' + Number(c.raw).toLocaleString(); } } } },
+            scales: { y: { beginAtZero: true, ticks: { callback: function (v) { return 'SAR ' + Number(v).toLocaleString(); } } }, x: { grid: { display: false } } },
+        },
+    });
+})();
+</script>
+}

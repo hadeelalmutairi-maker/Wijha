@@ -1,0 +1,283 @@
+@using Wijha.Models
+@using Wijha.Helpers
+@using System.Text.Json
+@{
+    bool isCustomer = ViewBag.IsCustomerAuth == true;
+    Layout = isCustomer ? "~/Views/layouts/_customer.cshtml" : "~/Views/layouts/_public.cshtml";
+    var provider = (ServiceProvider)ViewBag.Provider;
+    var selectedService = ViewBag.SelectedService as ProviderService;
+    var freeDates = (IEnumerable<DateOnly>)ViewBag.FreeDates;
+    var reviews = (IEnumerable<Review>)ViewBag.Reviews;
+    var portfolioImages = (IEnumerable<string>)ViewBag.PortfolioImages;
+    var compareIds = (IEnumerable<int>)ViewBag.CompareIds;
+    var serviceGroups = (Dictionary<string?, IEnumerable<ProviderService>>)ViewBag.ServiceGroups;
+    ViewBag.Title = $"{provider.BusinessName} | Wijha";
+    string? logoUrl = WijhaHelpers.ImageUrl(provider.LogoUrl);
+    var imgList = portfolioImages.ToList();
+}
+
+<div class="provider-hero">
+    @if (logoUrl != null)
+    {
+        <div class="provider-hero-bg" style="background-image:url('@logoUrl');"></div>
+    }
+    else
+    {
+        <div class="provider-hero-bg" style="background:var(--w-green-900);"></div>
+    }
+    <div class="provider-hero-overlay"></div>
+    <div class="provider-hero-content">
+        <div class="d-flex justify-content-between align-items-end flex-wrap gap-3">
+            <div>
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    @if (provider.IsVerified)
+                    {
+                        <span class="badge-w b-gold"><i class="bi bi-patch-check-fill"></i> Verified</span>
+                    }
+                    <span class="badge-w b-cream">@provider.City</span>
+                </div>
+                <h1 class="display-hero mb-1" style="color:#F6F8F6;font-size:38px;">@provider.BusinessName</h1>
+                <div style="color:#A8BEB0;font-size:15px;">
+                    @if (provider.ProviderServices?.Any() == true)
+                    {
+                        @string.Join(" · ", provider.ProviderServices!.Select(ps => ps.Service?.ServiceName).Where(n => n != null).Distinct())
+                    }
+                </div>
+            </div>
+            <div class="d-flex gap-3 align-items-center">
+                <div class="rate" style="font-size:17px;"><i class="bi bi-star-fill"></i>@provider.AverageRating.ToString("F1") <span class="muted" style="font-size:14px;">(@provider.TotalReviews)</span></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="crumbs">
+    <a href="@Url.RouteUrl("providers.index")">Providers</a>
+    <i class="bi bi-chevron-right" style="font-size:10px;"></i>
+    <span class="cur">@provider.BusinessName</span>
+</div>
+
+<div class="page-pad">
+    @await Html.PartialAsync("~/Views/partials/_flash.cshtml")
+
+    <div class="row g-5">
+        <div class="col-lg-8">
+            @if (!string.IsNullOrEmpty(provider.BusinessDescription))
+            {
+                <div class="mb-5">
+                    <h2 class="h-sec mb-3">About @provider.BusinessName</h2>
+                    <p style="font-size:16px;line-height:1.75;color:var(--w-green-700);">@provider.BusinessDescription</p>
+                </div>
+            }
+
+            @if (imgList.Any())
+            {
+                <div class="mb-5">
+                    <h2 class="h-sec mb-3">Portfolio</h2>
+                    <div class="photo-grid">
+                        @for (int i = 0; i < Math.Min(imgList.Count, 9); i++)
+                        {
+                            string? url = WijhaHelpers.ImageUrl(imgList[i]);
+                            if (url == null) continue;
+                            <div class="photo-grid-item @(i == 0 ? "photo-grid-featured" : "")" data-idx="@i">
+                                <img src="@url" alt="Portfolio image @(i + 1)" loading="lazy" style="width:100%;height:100%;object-fit:cover;cursor:zoom-in;" onclick="openLightbox(@i)">
+                                @if (i == 8 && imgList.Count > 9)
+                                {
+                                    <div class="photo-grid-more" onclick="openLightbox(8)">+@(imgList.Count - 9) more</div>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+
+            <div class="mb-5">
+                <h2 class="h-sec mb-4">Services offered</h2>
+                @foreach (var grp in serviceGroups)
+                {
+                    @if (grp.Key != null)
+                    {
+                        <h3 class="lbl mb-3">@grp.Key</h3>
+                    }
+                    <div class="row g-3 mb-4">
+                        @foreach (var ps in grp.Value)
+                        {
+                            bool inCompare = compareIds.Contains(ps.ProviderServiceId);
+                            bool isSelected = selectedService?.ProviderServiceId == ps.ProviderServiceId;
+                            string bookHref = isCustomer
+                                ? Url.RouteUrl("customer.bookings.create", new { provider_service_id = ps.ProviderServiceId })!
+                                : Url.RouteUrl("login")!;
+                            ViewContext.ViewData["ps"] = ps;
+                            ViewContext.ViewData["isSelected"] = isSelected;
+                            ViewContext.ViewData["bookHref"] = bookHref;
+                            ViewContext.ViewData["nextFree"] = freeDates.Any() ? freeDates.First() : (DateOnly?)null;
+                            ViewContext.ViewData["inCompare"] = inCompare;
+                            <div class="col-sm-6">@await Html.PartialAsync("~/Views/public/providers/_service-card.cshtml")</div>
+                        }
+                    </div>
+                }
+            </div>
+
+            @if (reviews.Any())
+            {
+                <div class="mb-5">
+                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+                        <h2 class="h-sec mb-0">Recent reviews</h2>
+                        @if (provider.TotalReviews > 3)
+                        {
+                            <a href="@Url.RouteUrl("providers.reviews", new { id = provider.ProviderId })" class="btn btn-w-ghost btn-sm-w">All @provider.TotalReviews reviews <i class="bi bi-arrow-right ms-1"></i></a>
+                        }
+                    </div>
+                    <div class="d-flex flex-column gap-3">
+                        @{
+                            string[] avatarColors = ["#D8BD9E", "#C8D1CC", "#E8DCCB", "#CFD9D2"];
+                            int revIdx = 0;
+                        }
+                        @foreach (var review in reviews.Take(3))
+                        {
+                            string initials = $"{review.Booking?.Customer?.FirstName?[0]}{review.Booking?.Customer?.LastName?[0]}".ToUpper();
+                            string avatarBg = avatarColors[revIdx % avatarColors.Length];
+                            <div class="card-w" style="padding:22px;">
+                                <div class="d-flex justify-content-between align-items-start gap-3">
+                                    <div class="d-flex gap-3 align-items-center">
+                                        <div style="width:40px;height:40px;border-radius:50%;background:@avatarBg;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;color:var(--w-green-900);flex:none;">@initials</div>
+                                        <div>
+                                            <div style="font-weight:600;font-size:14.5px;color:var(--w-green-900);">@review.Booking?.Customer?.FirstName @review.Booking?.Customer?.LastName</div>
+                                            <div class="muted" style="font-size:12.5px;">@review.ReviewDate.ToString("dd MMM yyyy")</div>
+                                        </div>
+                                    </div>
+                                    <div style="color:var(--w-sand-400);font-size:14px;flex:none;">
+                                        @for (int i = 1; i <= 5; i++) { <i class="bi bi-star@(i <= review.Rating ? "-fill" : "")"></i> }
+                                    </div>
+                                </div>
+                                @if (!string.IsNullOrEmpty(review.ReviewText))
+                                {
+                                    <p class="mt-2 mb-0" style="font-size:14.5px;line-height:1.65;color:var(--w-green-700);">@review.ReviewText</p>
+                                }
+                            </div>
+                            revIdx++;
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+
+        <div class="col-lg-4">
+            <div style="position:sticky;top:92px;">
+                @if (selectedService != null)
+                {
+                    bool inCmp = compareIds.Contains(selectedService.ProviderServiceId);
+                    <div class="card-w mb-4" style="padding:26px;">
+                        <h3 class="h-card mb-3">@selectedService.OfferingTitle</h3>
+                        <div class="sum-row"><span class="k">Price</span><span class="v price" style="font-size:19px;">SAR @selectedService.Price.ToString("N0") @WijhaHelpers.PriceUnit(selectedService.PriceUnit)</span></div>
+                        @if (selectedService.DurationHours.HasValue)
+                        {
+                            <div class="sum-row"><span class="k">Duration</span><span class="v">@selectedService.DurationHours hours</span></div>
+                        }
+                        <div class="sum-row"><span class="k">City</span><span class="v">@selectedService.ServiceCity</span></div>
+                        <hr class="divider my-3">
+                        <div class="lbl mb-2">Available dates</div>
+                        @if (freeDates.Any())
+                        {
+                            <div class="d-flex flex-wrap gap-2 mb-3">
+                                @foreach (var d in freeDates.Take(8))
+                                {
+                                    <span class="badge-w b-ok" style="font-size:12.5px;">@d.ToString("dd MMM")</span>
+                                }
+                                @if (freeDates.Count() > 8)
+                                {
+                                    <span class="badge-w b-grey" style="font-size:12.5px;">+@(freeDates.Count() - 8) more</span>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <p class="muted mb-3" style="font-size:14px;">No open dates listed yet.</p>
+                        }
+                        @if (isCustomer)
+                        {
+                            <a href="@Url.RouteUrl("customer.bookings.create", new { provider_service_id = selectedService.ProviderServiceId })" class="btn btn-w btn-block">Book this service</a>
+                        }
+                        else
+                        {
+                            <a href="@Url.RouteUrl("login")" class="btn btn-w btn-block">Log in to book</a>
+                        }
+                        <form method="POST" action="@Url.RouteUrl(inCmp ? "compare.remove" : "compare.add")" class="mt-2">
+                            @Html.AntiForgeryToken()
+                            @if (inCmp) { <input type="hidden" name="_method" value="DELETE"> }
+                            <input type="hidden" name="provider_service_id" value="@selectedService.ProviderServiceId">
+                            <button type="submit" class="btn @(inCmp ? "btn-w-ghost" : "btn-w-ghost") btn-block">
+                                <i class="bi bi-bar-chart-steps me-2"></i>@(inCmp ? "Remove from compare" : "Add to compare")
+                            </button>
+                        </form>
+                    </div>
+                }
+
+                <div class="card-w" style="padding:24px;">
+                    <h3 class="h-card mb-3">About the provider</h3>
+                    <div class="sum-row"><span class="k">City</span><span class="v">@provider.City</span></div>
+                    @if (provider.TotalReviews > 0)
+                    {
+                        <div class="sum-row"><span class="k">Rating</span><span class="v"><span class="rate"><i class="bi bi-star-fill"></i>@provider.AverageRating.ToString("F1")</span> &middot; @provider.TotalReviews @(provider.TotalReviews == 1 ? "review" : "reviews")</span></div>
+                    }
+                    <div class="sum-row"><span class="k">On Wijha since</span><span class="v">@(provider.CreatedAt.HasValue ? provider.CreatedAt.Value.ToString("MMM yyyy") : "–")</span></div>
+                    <hr class="divider my-3">
+                    <a href="@Url.RouteUrl("providers.reviews", new { id = provider.ProviderId })" class="btn btn-w-ghost btn-sm-w btn-block">Read all reviews</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (imgList.Any())
+{
+    <div class="modal fade" id="lightbox-modal" tabindex="-1" aria-label="Portfolio lightbox">
+        <div class="modal-dialog modal-xl modal-dialog-centered">
+            <div class="modal-content" style="background:rgba(20,30,24,.97);border:0;border-radius:var(--r-xl);">
+                <div class="modal-body" style="padding:24px;position:relative;">
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" style="position:absolute;top:16px;right:16px;z-index:10;" aria-label="Close"></button>
+                    <div style="text-align:center;">
+                        <img id="lb-img" src="" alt="Portfolio" style="max-height:75vh;max-width:100%;border-radius:var(--r-md);display:block;margin:0 auto;">
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mt-3">
+                        <button type="button" class="btn btn-w-ghost" onclick="lbNav(-1)"><i class="bi bi-chevron-left"></i> Prev</button>
+                        <span id="lb-counter" class="muted" style="font-size:14px;"></span>
+                        <button type="button" class="btn btn-w-ghost" onclick="lbNav(1)">Next <i class="bi bi-chevron-right"></i></button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @section scripts {
+    <script>
+    var lbImages = @Html.Raw(JsonSerializer.Serialize(imgList.Select(url => WijhaHelpers.ImageUrl(url)).Where(u => u != null)));
+    var lbIdx = 0;
+    var lbModal = null;
+
+    function openLightbox(idx) {
+        lbIdx = idx;
+        if (!lbModal) lbModal = new bootstrap.Modal(document.getElementById('lightbox-modal'));
+        renderLb();
+        lbModal.show();
+    }
+
+    function renderLb() {
+        document.getElementById('lb-img').src = lbImages[lbIdx] || '';
+        document.getElementById('lb-counter').textContent = (lbIdx + 1) + ' / ' + lbImages.length;
+    }
+
+    function lbNav(dir) {
+        lbIdx = (lbIdx + dir + lbImages.length) % lbImages.length;
+        renderLb();
+    }
+
+    document.addEventListener('keydown', function (e) {
+        if (!lbModal || !document.getElementById('lightbox-modal').classList.contains('show')) return;
+        if (e.key === 'ArrowLeft') lbNav(-1);
+        if (e.key === 'ArrowRight') lbNav(1);
+        if (e.key === 'Escape') lbModal.hide();
+    });
+    </script>
+    }
+}

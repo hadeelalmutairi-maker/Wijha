@@ -1,0 +1,151 @@
+@using Wijha.Models
+@model Customer
+@{
+    Layout = "~/Views/layouts/_customer.cshtml";
+    ViewBag.Title = "My dashboard | Wijha";
+    var stats = (Dictionary<string,object>)ViewBag.Stats;
+    decimal totalSpent = ViewBag.TotalSpent ?? 0m;
+    var upcomingBookings = (IEnumerable<Booking>)ViewBag.UpcomingBookings;
+    var myEvents = (IEnumerable<CustomerEvent>)ViewBag.MyEvents;
+    var monthLabels = (IEnumerable<string>)ViewBag.MonthLabels;
+    var bookingsTrend = (IEnumerable<int>)ViewBag.BookingsTrend;
+    var spentTrend = (IEnumerable<decimal>)ViewBag.SpentTrend;
+}
+<div class="page-pad">
+    @await Html.PartialAsync("~/Views/partials/_flash.cshtml")
+
+    <div class="card-w mb-4" style="padding:28px 32px;background:var(--w-green-700);border:0;position:relative;overflow:hidden;">
+        <svg width="260" height="260" viewBox="0 0 260 260" fill="none" style="position:absolute;right:-60px;top:-80px;opacity:.18;"><circle cx="130" cy="130" r="130" fill="#FDFBF6"/></svg>
+        <div style="position:relative;">
+            <div class="d-flex align-items-center gap-2 mb-2" style="color:var(--w-sand-300);font-size:13px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;">
+                <i class="bi bi-stars"></i> Welcome back
+            </div>
+            <h1 class="h-pg mb-1" style="color:#fff;">Hello, @Model.FirstName</h1>
+            <p class="mb-0" style="color:#CBD6CE;font-size:15px;max-width:520px;">Here's where your bookings, events and spending stand right now.</p>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3"><div class="kpi">
+            <div class="d-flex justify-content-between align-items-start">
+                <div><div class="lbl">Upcoming</div><div class="n mt-2">@stats["upcoming"]</div></div>
+                <i class="bi bi-calendar-event" style="font-size:20px;color:var(--w-sand-400);"></i>
+            </div>
+        </div></div>
+        <div class="col-6 col-md-3"><div class="kpi">
+            <div class="d-flex justify-content-between align-items-start">
+                <div><div class="lbl">Completed</div><div class="n mt-2">@stats["completed"]</div></div>
+                <i class="bi bi-check-circle" style="font-size:20px;color:var(--w-green-600);"></i>
+            </div>
+        </div></div>
+        <div class="col-6 col-md-3"><div class="kpi">
+            <div class="d-flex justify-content-between align-items-start">
+                <div><div class="lbl">My events</div><div class="n mt-2">@stats["events"]</div></div>
+                <i class="bi bi-calendar-heart" style="font-size:20px;color:var(--w-sand-400);"></i>
+            </div>
+        </div></div>
+        <div class="col-6 col-md-3"><div class="kpi">
+            <div class="d-flex justify-content-between align-items-start">
+                <div><div class="lbl">Total spent</div><div class="n mt-2" style="font-size:26px;">SAR @totalSpent.ToString("N0")</div></div>
+                <i class="bi bi-wallet2" style="font-size:20px;color:var(--w-green-600);"></i>
+            </div>
+        </div></div>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-lg-6">
+            <div class="card-w" style="padding:22px;">
+                <div class="lbl mb-3">Bookings in the last 6 months</div>
+                <canvas id="chart-bookings" height="180"></canvas>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card-w" style="padding:22px;">
+                <div class="lbl mb-3">Spending in the last 6 months</div>
+                <canvas id="chart-spent" height="180"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-md-7">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h2 class="h-sec mb-0">Upcoming bookings</h2>
+                <a href="@Url.RouteUrl("customer.bookings.index")" class="btn btn-w-ghost btn-sm-w">View all</a>
+            </div>
+            @if (!upcomingBookings.Any())
+            {
+                <div class="card-w text-center" style="padding:40px;">
+                    <p class="muted mb-3">No upcoming bookings yet.</p>
+                    <a href="@Url.RouteUrl("providers.index")" class="btn btn-w btn-sm-w">Browse providers</a>
+                </div>
+            }
+            else
+            {
+                foreach (var booking in upcomingBookings)
+                {
+                    <div class="card-w mb-3" style="padding:20px;">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h3 class="h-card">@booking.ProviderService?.OfferingTitle</h3>
+                                <div class="muted" style="font-size:13.5px;">@booking.ProviderService?.ServiceProvider?.BusinessName &middot; @booking.ServiceDate.ToString("dd MMM yyyy")</div>
+                            </div>
+                            <span class="badge-w @(booking.BookingStatus == "Accepted" ? "b-ok" : "b-warn")">@booking.BookingStatus</span>
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+
+        <div class="col-md-5">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h2 class="h-sec mb-0">My events</h2>
+                <a href="@Url.RouteUrl("customer.myevents.index")" class="btn btn-w-ghost btn-sm-w">View all</a>
+            </div>
+            @if (!myEvents.Any())
+            {
+                <div class="card-w text-center" style="padding:40px;">
+                    <p class="muted mb-3">No events yet.</p>
+                    <a href="@Url.RouteUrl("customer.myevents.index")" class="btn btn-w btn-sm-w">Create an event</a>
+                </div>
+            }
+            else
+            {
+                foreach (var ev in myEvents)
+                {
+                    <a href="@Url.RouteUrl("customer.myevents.show", new { id = ev.EventId })" class="card-w mb-3 d-block text-decoration-none" style="padding:18px;">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <div style="font-weight:700;">@ev.EventName</div>
+                                <div class="muted" style="font-size:13px;">@ev.EventType &middot; @ev.EventDate.ToString("dd MMM yyyy")</div>
+                            </div>
+                            <span class="badge-w b-warn">@ev.EventStatus</span>
+                        </div>
+                    </a>
+                }
+            }
+        </div>
+    </div>
+</div>
+
+@section scripts {
+<script>
+  const custMonthLabels = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(monthLabels));
+  const custBookingsTrend = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(bookingsTrend));
+  const custSpentTrend = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(spentTrend));
+  const greenLine = '#3A5240';
+  const sandLine = '#C9A24B';
+
+  new Chart(document.getElementById('chart-bookings'), {
+    type: 'line',
+    data: { labels: custMonthLabels, datasets: [{ label: 'Bookings', data: custBookingsTrend, borderColor: greenLine, backgroundColor: 'rgba(58,82,64,.12)', tension: .35, fill: true, pointRadius: 3 }] },
+    options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } },
+  });
+
+  new Chart(document.getElementById('chart-spent'), {
+    type: 'bar',
+    data: { labels: custMonthLabels, datasets: [{ label: 'Spent (SAR)', data: custSpentTrend, backgroundColor: sandLine, borderRadius: 6 }] },
+    options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } },
+  });
+</script>
+}

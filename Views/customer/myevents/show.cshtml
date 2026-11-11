@@ -1,0 +1,68 @@
+@using Wijha.Models
+@model CustomerEvent
+@{
+    Layout = "~/Views/layouts/_customer.cshtml";
+    ViewBag.Title = $"{Model.EventName} | Wijha";
+    decimal spent = ViewBag.Spent ?? 0m;
+}
+<div class="page-pad">
+    @await Html.PartialAsync("~/Views/partials/_flash.cshtml")
+    <div class="card-w mb-4" style="padding:24px;">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+            <div>
+                <h1 class="h-pg mb-1">@Model.EventName</h1>
+                <div class="muted" style="font-size:14px;">@Model.EventType &middot; @Model.EventDate.ToString("dd MMM yyyy")</div>
+            </div>
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <span class="badge-w b-warn">@Model.EventStatus</span>
+                <button type="button" class="btn btn-w-ghost btn-sm-w" data-bs-toggle="modal" data-bs-target="#edit-event-@Model.MyEventId">Edit</button>
+                <button type="button" class="btn btn-w-ghost btn-sm-w" style="color:var(--w-danger);" data-bs-toggle="modal" data-bs-target="#delete-event-@Model.MyEventId">Delete</button>
+            </div>
+        </div>
+        @if (Model.TotalBudget.HasValue && Model.TotalBudget > 0)
+        {
+            int pct = (int)Math.Min(100, Math.Round(spent / Model.TotalBudget.Value * 100));
+            <div style="margin-top:20px;background:var(--w-cream-200);border-radius:var(--r-md);padding:16px;">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="lbl">Budget used</span>
+                    <span style="font-size:13.5px;font-weight:700;color:var(--w-green-700);">SAR @spent.ToString("N0") of @Model.TotalBudget.Value.ToString("N0")</span>
+                </div>
+                <div style="height:10px;background:#E3DED6;border-radius:999px;overflow:hidden;">
+                    <div style="width:@pct%;height:10px;background:var(--w-sand-400);border-radius:999px;"></div>
+                </div>
+            </div>
+        }
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="h-sec mb-0">Bookings under this event</h2>
+        <a href="@Url.RouteUrl("providers.index")" class="btn btn-w-ghost btn-sm-w">Add a booking</a>
+    </div>
+
+    @if (Model.Bookings != null && Model.Bookings.Any())
+    {
+        @foreach (var booking in Model.Bookings)
+        {
+            string statusClass = booking.BookingStatus == "Accepted" ? "b-ok" : (booking.BookingStatus == "Pending" ? "b-warn" : "b-grey");
+            <div class="card-w mb-3" style="padding:20px;">
+                <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+                    <div>
+                        <h3 class="h-card">@booking.ProviderService?.OfferingTitle</h3>
+                        <div class="muted" style="font-size:13.5px;">@booking.ProviderService?.ServiceProvider?.BusinessName &middot; @booking.ServiceDate.ToString("dd MMM yyyy")</div>
+                    </div>
+                    <div class="text-end">
+                        <span class="price" style="font-size:18px;">SAR @booking.AgreedPrice.ToString("N0")</span><br>
+                        <span class="badge-w @statusClass">@booking.BookingStatus</span>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+    else
+    {
+        <p class="muted">No bookings grouped under this event yet.</p>
+    }
+</div>
+
+@await Html.PartialAsync("~/Views/customer/myevents/_edit-modal.cshtml", Model)
+@await Html.PartialAsync("~/Views/customer/myevents/_delete-modal.cshtml", Model)

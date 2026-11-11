@@ -1,0 +1,217 @@
+@using Wijha.Models
+@using Wijha.Support
+@{
+    Layout = "~/Views/layouts/_admin.cshtml";
+    ViewBag.Title = "Provider performance | Admin | Wijha";
+    var rows = (IEnumerable<dynamic>)ViewBag.Rows;
+    var chart = (IEnumerable<dynamic>)ViewBag.Chart;
+    var kpis = (Dictionary<string, object>)ViewBag.Kpis;
+    var services = (IEnumerable<Service>)ViewBag.Services;
+    var cities = (IEnumerable<string>)ViewBag.Cities;
+    var range = ViewBag.Range as DateRange;
+    var filters = (Dictionary<string, object>)ViewBag.Filters;
+    string sort = ViewBag.Sort as string ?? "requests";
+    var chartRows = chart.Select(r => new { name = (string)r.business_name, accepted = (int)r.accepted, rejected = (int)r.rejected, pending = (int)r.pending, cancelled = (int)r.cancelled }).ToList();
+    int chartHeight = Math.Max(160, chartRows.Count * 38 + 40);
+
+    string Pct(object? v) => v == null ? "N/A" : v + "%";
+    string Hours(object? h) {
+        if (h == null) return "N/A";
+        double hh = Convert.ToDouble(h);
+        if (hh < 1) return Math.Max(1, (int)Math.Round(hh * 60)) + " min";
+        if (hh < 48) return hh.ToString("F1").TrimEnd('0').TrimEnd('.') + " h";
+        return Math.Round(hh / 24, 1) + " days";
+    }
+    string SortLink(string key) => Url.RouteUrl("admin.reports.performance", new { sort = key }) ?? "#";
+    string SortHead(string key, string label) {
+        bool on = sort == key;
+        return $"<a href=\"{SortLink(key)}\" class=\"{(on ? "on" : "")}\">{label}{(on ? " <i class=\"bi bi-caret-down-fill\" style=\"font-size:9px;\"></i>" : "")}</a>";
+    }
+    bool hasAnyFilters = range?.Key != "all" || filters.Any(f => f.Value != null && f.Value.ToString() != "");
+}
+<div class="page-pad">
+    @await Html.PartialAsync("~/Views/partials/_flash.cshtml")
+
+    @await Html.PartialAsync("~/Views/components/_admin-head.cshtml", (object)new {
+        eyebrow = "Reports",
+        title = "Provider performance report",
+        subtitle = $"How providers handled the requests they received · {range?.Describe()}",
+        actions = new[] {
+            new { href = Url.RouteUrl("admin.reports.performance.export"), cls = "btn-w-ghost", icon = "download", label = "Export CSV" },
+            new { href = "#", cls = "btn-w-ghost", icon = "printer", label = "Print", onclick = "window.print()" },
+            new { href = Url.RouteUrl("admin.reports.earnings"), cls = "btn-w", icon = "cash-stack", label = "Earnings report" }
+        }
+    })
+
+    <form method="GET" action="@Url.RouteUrl("admin.reports.performance")" class="a-filters">
+        <input type="hidden" name="sort" value="@sort">
+        <div class="date-filter">
+            @{ ViewContext.ViewData["range"] = range; ViewContext.ViewData["label"] = "Request date"; ViewContext.ViewData["id"] = "perf"; }
+            @await Html.PartialAsync("~/Views/admin/_date-range.cshtml")
+            <div class="date-filter-field">
+                <label class="lbl d-block mb-2" for="service_id">Service type</label>
+                <select name="service_id" id="service_id" class="inp" onchange="this.form.submit()">
+                    <option value="">All services</option>
+                    @foreach (var s in services)
+                    {
+                        <option value="@s.ServiceId" @(filters.GetValueOrDefault("service_id")?.Equals(s.ServiceId) == true ? "selected" : "")>@s.ServiceName</option>
+                    }
+                </select>
+            </div>
+            <div class="date-filter-field">
+                <label class="lbl d-block mb-2" for="city">City</label>
+                <select name="city" id="city" class="inp" onchange="this.form.submit()">
+                    <option value="">All cities</option>
+                    @foreach (var c in cities)
+                    {
+                        <option value="@c" @(filters.GetValueOrDefault("city") as string == c ? "selected" : "")>@c</option>
+                    }
+                </select>
+            </div>
+            <div class="date-filter-field f-search">
+                <label class="lbl d-block mb-2" for="q">Provider</label>
+                <div class="inp-icon"><i class="bi bi-search"></i>
+                    <input type="search" name="q" id="q" class="inp" value="@(filters.GetValueOrDefault("q") as string)" placeholder="Business name"></div>
+            </div>
+            <button type="submit" class="btn btn-w btn-sm-w date-filter-btn">Apply</button>
+            @if (hasAnyFilters)
+            {
+                <a href="@Url.RouteUrl("admin.reports.performance")" class="btn btn-w-ghost btn-sm-w date-filter-btn">Reset</a>
+            }
+        </div>
+    </form>
+
+    <div class="row g-3 mb-3">
+        <div class="col-sm-6 col-xl-3"><div class="a-kpi">
+            <span class="a-kpi-ico"><i class="bi bi-inbox"></i></span>
+            <div><div class="lbl">Requests received</div><div class="a-kpi-n">@(((int)kpis["requests"]).ToString("N0"))</div>
+                <div class="a-kpi-sub">@kpis["active"] of @kpis["providers"] providers got requests</div></div>
+        </div></div>
+        <div class="col-sm-6 col-xl-3"><div class="a-kpi">
+            <span class="a-kpi-ico gold"><i class="bi bi-check2-circle"></i></span>
+            <div><div class="lbl">Acceptance rate</div><div class="a-kpi-n">@Pct(kpis.GetValueOrDefault("acceptance"))</div>
+                <div class="a-kpi-sub">Accepted out of accepted + rejected</div></div>
+        </div></div>
+        <div class="col-sm-6 col-xl-3"><div class="a-kpi">
+            <span class="a-kpi-ico grey"><i class="bi bi-stopwatch"></i></span>
+            <div><div class="lbl">Average reply time</div><div class="a-kpi-n">@Hours(kpis.GetValueOrDefault("response_hours"))</div>
+                <div class="a-kpi-sub">From request to accept / reject</div></div>
+        </div></div>
+        <div class="col-sm-6 col-xl-3">
+            @{ int cancelRate = Convert.ToInt32(kpis.GetValueOrDefault("cancel_rate") ?? 0); }
+            <div class="a-kpi">
+                <span class="a-kpi-ico @(cancelRate >= 30 ? "red" : "")"><i class="bi bi-flag"></i></span>
+                <div><div class="lbl">Completion rate</div><div class="a-kpi-n">@Pct(kpis.GetValueOrDefault("completion"))</div>
+                    <div class="a-kpi-sub">@Pct(kpis.GetValueOrDefault("cancel_rate")) of requests cancelled by customers</div></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="a-card mb-3" style="height:auto;">
+        <div class="a-card-head">
+            <div class="lbl">Requests by provider (top 10)</div>
+            <div class="a-note">
+                <span class="legend-dot" style="background:#3A5240;"></span>Accepted &nbsp;
+                <span class="legend-dot" style="background:#C98B7F;"></span>Rejected &nbsp;
+                <span class="legend-dot" style="background:#C9A24B;"></span>Pending &nbsp;
+                <span class="legend-dot" style="background:#C8D1CC;"></span>Cancelled
+            </div>
+        </div>
+        @if (chartRows.Any())
+        {
+            <div style="height:@(chartHeight)px;"><canvas id="chart-performance"></canvas></div>
+        }
+        else
+        {
+            <div class="a-empty">No requests in this period.</div>
+        }
+    </div>
+
+    <div class="a-table-wrap">
+        <table class="a-table" style="min-width:960px;">
+            <thead>
+                <tr>
+                    <th style="min-width:210px;">Provider</th>
+                    <th class="num">@Html.Raw(SortHead("requests", "Requests"))</th>
+                    <th style="width:150px;">@Html.Raw(SortHead("acceptance", "Acceptance"))</th>
+                    <th class="num">@Html.Raw(SortHead("response", "Avg reply"))</th>
+                    <th class="num">@Html.Raw(SortHead("completion", "Completion"))</th>
+                    <th class="num">Cancelled</th>
+                    <th class="num">@Html.Raw(SortHead("earnings", "Earnings"))</th>
+                    <th class="num">@Html.Raw(SortHead("rating", "Rating"))</th>
+                    <th class="no-print"></th>
+                </tr>
+            </thead>
+            <tbody>
+            @if (rows.Any())
+            {
+                @foreach (var r in rows)
+                {
+                    string initials = ((string)r.business_name).Substring(0, Math.Min(2, ((string)r.business_name).Length)).ToUpper();
+                    <tr>
+                        <td>
+                            <div class="d-flex align-items-center gap-2">
+                                @await Html.PartialAsync("~/Views/components/_avatar.cshtml", (object)new { url = Wijha.Helpers.WijhaHelpers.ImageUrl((string?)r.logo_url), initials, size = 34 })
+                                <div style="min-width:0;">
+                                    <strong>@r.business_name</strong>
+                                    @if ((string)r.account_status == "Blocked") { <span class="a-flag">Blocked</span> }
+                                    <div class="sub">@r.city</div>
+                                    @foreach (var flag in (IEnumerable<string>)r.flags) { <span class="a-flag">@flag</span> }
+                                </div>
+                            </div>
+                        </td>
+                        <td class="num" title="@r.accepted accepted, @r.rejected rejected, @r.pending pending"><strong>@r.requests</strong>
+                            @if ((int)r.pending > 0) { <div class="sub">@r.pending pending</div> }</td>
+                        <td>
+                            @if (r.acceptance != null)
+                            {
+                                <div class="d-flex align-items-center gap-2"><div class="a-bar flex-grow-1"><span style="width:@(r.acceptance)%;@((int)r.acceptance < 60 ? "background:#C98B7F;" : "")"></span></div>
+                                    <strong style="font-size:13px;">@r.acceptance%</strong></div>
+                            }
+                            else
+                            {
+                                <span class="sub">No decisions</span>
+                            }
+                        </td>
+                        <td class="num">@Hours(r.response_hours)</td>
+                        <td class="num">@Pct(r.completion)</td>
+                        <td class="num">@r.cancelled</td>
+                        <td class="num"><strong>SAR @(((decimal)r.earnings).ToString("N0"))</strong></td>
+                        <td class="num"><i class="bi bi-star-fill" style="color:var(--w-sand-400);font-size:12px;"></i> @(((decimal)r.average_rating).ToString("F1"))<div class="sub">@r.total_reviews @((int)r.total_reviews == 1 ? "review" : "reviews")</div></td>
+                        <td class="no-print"><a href="@Url.RouteUrl("admin.bookings.index", new { provider_id = r.provider_id })" class="btn btn-w-ghost btn-sm-w" title="See @r.business_name's bookings" aria-label="See @r.business_name's bookings"><i class="bi bi-calendar-check"></i></a></td>
+                    </tr>
+                }
+            }
+            else
+            {
+                <tr><td colspan="9" class="a-empty">No approved providers match these filters.</td></tr>
+            }
+            </tbody>
+        </table>
+    </div>
+
+    <p class="a-note mt-3 mb-0"><i class="bi bi-info-circle me-1"></i>
+        Flags: <strong>Slow to reply</strong> means an average reply over 24 hours; <strong>Low acceptance</strong> means under 60% with at least 3 decisions;
+        <strong>Many cancellations</strong> means 30% or more of requests cancelled by customers. Ratings are all-time.</p>
+</div>
+
+@section scripts {
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+(function () {
+    const el = document.getElementById('chart-performance');
+    if (!el) return;
+    const rows = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(chartRows));
+    const ds = function (label, key, color) { return { label: label, data: rows.map(r => r[key]), backgroundColor: color, borderRadius: 4, maxBarThickness: 22 }; };
+    new Chart(el, {
+        type: 'bar',
+        data: { labels: rows.map(r => r.name), datasets: [ds('Accepted', 'accepted', '#3A5240'), ds('Rejected', 'rejected', '#C98B7F'), ds('Pending', 'pending', '#C9A24B'), ds('Cancelled', 'cancelled', '#C8D1CC')] },
+        options: {
+            indexAxis: 'y', maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: { x: { stacked: true, beginAtZero: true, ticks: { precision: 0 } }, y: { stacked: true, grid: { display: false } } },
+        },
+    });
+})();
+</script>
+}

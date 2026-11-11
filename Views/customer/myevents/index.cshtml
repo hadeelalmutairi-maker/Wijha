@@ -1,0 +1,80 @@
+@using Wijha.Models
+@using Wijha.Support.Http
+@{
+    Layout = "~/Views/layouts/_customer.cshtml";
+    ViewBag.Title = "My events | Wijha";
+    var myEvents = (IEnumerable<CustomerEvent>)ViewBag.MyEvents;
+    string? q = ViewBag.Q as string;
+}
+<div class="page-pad">
+    @await Html.PartialAsync("~/Views/partials/_flash.cshtml")
+    <div class="d-flex justify-content-between align-items-end mb-4 flex-wrap gap-3">
+        <h1 class="h-pg mb-0">My events</h1>
+        <button type="button" class="btn btn-w" data-bs-toggle="modal" data-bs-target="#add-event"><i class="bi bi-plus-lg me-2"></i>Create event</button>
+    </div>
+
+    @if (!myEvents.Any() && string.IsNullOrEmpty(q))
+    {
+        <div class="card-w text-center" style="padding:60px;">
+            @await Html.PartialAsync("~/Views/components/_empty-inbox.cshtml")
+            <p class="lead-w mt-4">You have not created an event yet. Book a single service directly, or group several bookings under an event.</p>
+            <button type="button" class="btn btn-w mt-3" data-bs-toggle="modal" data-bs-target="#add-event">Create your first event</button>
+        </div>
+    }
+    else
+    {
+        <form method="get" action="@Url.RouteUrl("customer.myevents.index")" class="d-flex gap-2 flex-wrap mb-4">
+            <div class="inp-icon" style="flex:1;min-width:220px;max-width:360px;"><i class="bi bi-search"></i>
+                <input type="text" name="q" class="inp" value="@q" placeholder="Search event name or type"></div>
+            <button type="submit" class="btn btn-w-ghost">Search</button>
+            @if (!string.IsNullOrEmpty(q))
+            {
+                <a href="@Url.RouteUrl("customer.myevents.index")" class="btn btn-w-ghost">Clear</a>
+            }
+        </form>
+
+        <div style="overflow-x:auto;">
+        <table class="cmp" style="border-radius:var(--r-lg);overflow:hidden;border:1px solid rgba(200,209,204,.6);">
+            <tr>
+                <th class="rowh">Event</th>
+                <th class="rowh">Type</th>
+                <th class="rowh">Date</th>
+                <th class="rowh">Bookings</th>
+                <th class="rowh">Budget</th>
+                <th class="rowh">Status</th>
+                <th class="rowh" style="width:280px;">Action</th>
+            </tr>
+            @foreach (var ev in myEvents)
+            {
+                <tr>
+                    <td><strong>@ev.EventName</strong></td>
+                    <td>@ev.EventType</td>
+                    <td class="muted" style="font-size:13px;">@ev.EventDate.ToString("dd MMM yyyy")</td>
+                    <td>@(ev.BookingsCount ?? 0)</td>
+                    <td>@(ev.TotalBudget.HasValue ? "SAR " + ev.TotalBudget.Value.ToString("N0") : "Not set")</td>
+                    <td><span class="badge-w b-warn">@ev.EventStatus</span></td>
+                    <td>
+                        <div class="d-flex gap-2 flex-nowrap">
+                            <a href="@Url.RouteUrl("customer.myevents.show", new { id = ev.MyEventId })" class="btn btn-w-ghost btn-sm-w">View</a>
+                            <button type="button" class="btn btn-w-ghost btn-sm-w" data-bs-toggle="modal" data-bs-target="#edit-event-@ev.MyEventId">Edit</button>
+                            <button type="button" class="btn btn-w-ghost btn-sm-w" style="color:var(--w-danger);" data-bs-toggle="modal" data-bs-target="#delete-event-@ev.MyEventId">Delete</button>
+                        </div>
+                    </td>
+                </tr>
+            }
+            @if (!myEvents.Any())
+            {
+                <tr><td colspan="7" class="text-center muted" style="padding:40px;">No events match your search.</td></tr>
+            }
+        </table>
+        </div>
+
+        @foreach (var ev in myEvents)
+        {
+            @await Html.PartialAsync("~/Views/customer/myevents/_edit-modal.cshtml", ev)
+            @await Html.PartialAsync("~/Views/customer/myevents/_delete-modal.cshtml", ev)
+        }
+    }
+</div>
+
+@await Html.PartialAsync("~/Views/customer/myevents/_add-modal.cshtml")

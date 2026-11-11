@@ -1,0 +1,14 @@
+@model dynamic
+@{
+    string? url = Model?.url;
+    string initials = Model?.initials ?? "";
+    int size = Model?.size ?? 40;
+}
+@if (url != null)
+{
+    <img src="@url" alt="@initials" style="width:@(size)px;height:@(size)px;border-radius:999px;object-fit:cover;flex:none;">
+}
+else
+{
+    <div class="av" style="width:@(size)px;height:@(size)px;font-size:@((int)Math.Round(size * 0.35))px;">@initials</div>
+}

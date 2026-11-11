@@ -1,0 +1,38 @@
+@using Wijha.Models
+@using Wijha.Support.Http
+@model Booking
+@{
+    Layout = "~/Views/layouts/_customer.cshtml";
+    ViewBag.Title = $"Rate {Model.ProviderService?.ServiceProvider?.BusinessName} | Wijha";
+    var errors = new ErrorBag(ViewContext);
+}
+<div class="page-pad" style="max-width:640px;">
+    @await Html.PartialAsync("~/Views/partials/_flash.cshtml")
+    <h1 class="h-pg mb-2">Rate your experience</h1>
+    <p class="muted mb-4" style="font-size:15px;">@Model.ProviderService?.OfferingTitle &middot; @Model.ProviderService?.ServiceProvider?.BusinessName</p>
+
+    <form method="post" action="@Url.RouteUrl("customer.reviews.store", new { id = Model.BookingId })" class="card-w" style="padding:30px;">
+        @Html.AntiForgeryToken()
+        <div class="field">
+            <label for="rating">Rating <span style="color:var(--w-danger);">*</span></label>
+            <select name="rating" id="rating" class="inp @(errors.Has("rating") ? "inp-err" : "")" required>
+                <option value="">Select a rating</option>
+                @for (int i = 5; i >= 1; i--)
+                {
+                    string old = Flash.Old(ViewContext.HttpContext, "rating") ?? "";
+                    <option value="@i" @(old == i.ToString() ? "selected" : "")>@i @(i == 1 ? "star" : "stars")</option>
+                }
+            </select>
+            @if (errors.Has("rating")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("rating")</div> }
+        </div>
+
+        <div class="field" style="margin-bottom:8px;">
+            <label for="review_text">Review (optional)</label>
+            <textarea name="review_text" id="review_text" class="inp inp-area @(errors.Has("review_text") ? "inp-err" : "")"
+                      rows="4" maxlength="1000" placeholder="Share details about your experience.">@Flash.Old(ViewContext.HttpContext, "review_text")</textarea>
+            @if (errors.Has("review_text")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("review_text")</div> }
+        </div>
+
+        <button type="submit" class="btn btn-w btn-lg-w mt-2">Submit review</button>
+    </form>
+</div>

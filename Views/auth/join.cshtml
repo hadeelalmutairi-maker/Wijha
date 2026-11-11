@@ -1,0 +1,51 @@
+@{
+    Layout = "~/Views/layouts/_auth.cshtml";
+    ViewBag.Title = "Create your account | Wijha";
+    int customerCount = ViewBag.CustomerCount ?? 0;
+    int providerCount = ViewBag.ProviderCount ?? 0;
+}
+
+@section quote {
+    <div class="auth-quote">One account.<br>Every part of<br>your event.</div>
+    <p class="mt-4 mb-0" style="color:#C3D0C7;font-size:15px;line-height:1.65;max-width:320px;">Join @customerCount.ToString("N0") customers and @providerCount.ToString("N0") verified providers already planning on Wijha.</p>
+}
+
+@await Html.PartialAsync("~/Views/auth/_join-steps.cshtml", (object)new { step = 1 })
+<h1 class="h-pg mb-2">Create your account</h1>
+<p class="muted mb-4" style="font-size:15.5px;">Tell us how you will use Wijha. You can only pick one.</p>
+
+<form method="get" action="@Url.RouteUrl("register.type")" id="join-form">
+    <label class="opt join-opt on">
+        <input type="radio" name="type" value="customer" class="d-none" checked>
+        <span class="join-ico"><i class="bi bi-calendar-heart"></i></span>
+        <div class="flex-grow-1">
+            <div class="h-card ff" style="font-size:18px;">I am planning an event</div>
+            <div class="muted mt-2" style="font-size:14px;line-height:1.6;">Search providers, compare prices, check availability and book services for your wedding, graduation or birthday.</div>
+        </div>
+        <span class="join-check"><i class="bi bi-check-lg"></i></span>
+    </label>
+    <label class="opt join-opt">
+        <input type="radio" name="type" value="provider" class="d-none">
+        <span class="join-ico"><i class="bi bi-shop"></i></span>
+        <div class="flex-grow-1">
+            <div class="h-card ff" style="font-size:18px;">I offer event services</div>
+            <div class="muted mt-2" style="font-size:14px;line-height:1.6;">List your services, set your available dates and manage booking requests. Requires admin approval before publishing.</div>
+        </div>
+        <span class="join-check"><i class="bi bi-check-lg"></i></span>
+    </label>
+
+    <button type="submit" class="btn btn-w btn-lg-w btn-block mt-2">Continue <i class="bi bi-arrow-right ms-1"></i></button>
+    <p class="text-center muted mt-4 mb-0" style="font-size:15px;">Already have an account? <a href="@Url.RouteUrl("login")" style="color:var(--w-green-700);font-weight:700;">Log in</a></p>
+</form>
+
+@section scripts {
+<script>
+document.querySelectorAll('.join-opt').forEach(function (opt) {
+    opt.addEventListener('click', function () {
+        document.querySelectorAll('.join-opt').forEach(function (o) { o.classList.remove('on'); });
+        opt.classList.add('on');
+        opt.querySelector('input').checked = true;
+    });
+});
+</script>
+}

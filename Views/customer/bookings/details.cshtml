@@ -1,0 +1,213 @@
+@using Wijha.Models
+@using Wijha.Support.Http
+@using Wijha.Helpers
+@{
+    Layout = "~/Views/layouts/_customer.cshtml";
+    var providerService = (ProviderService)ViewBag.ProviderService;
+    var provider = (ServiceProvider)ViewBag.Provider;
+    ViewBag.Title = $"Booking details | {providerService.OfferingTitle} | Wijha";
+    string serviceDate = ViewBag.ServiceDate ?? "";
+    string serviceTime = ViewBag.ServiceTime ?? "";
+    string? serviceEnd = ViewBag.ServiceEnd;
+    var myEvent = (CustomerEvent?)ViewBag.MyEvent;
+    var oldVals = (Dictionary<string,string?>?)ViewBag.OldValues ?? new();
+    var errors = new ErrorBag(ViewContext);
+    int problems = errors.Count();
+    DateOnly date = DateOnly.Parse(serviceDate);
+    string timeLabel = serviceTime + (serviceEnd != null ? $" – {serviceEnd}" : "");
+    string availabilityUrl = Url.RouteUrl("customer.bookings.create", new { provider_service_id = providerService.ProviderServiceId, month = date.ToString("yyyy-MM"), date = serviceDate }) ?? "#";
+    decimal eventSpent = myEvent?.Bookings?.Sum(b => b.AgreedPrice) ?? 0m;
+    decimal eventBudget = myEvent?.TotalBudget ?? 0m;
+    string Val(string field, string def = "") => Flash.Old(ViewContext.HttpContext, field) ?? (oldVals.ContainsKey(field) ? oldVals[field] ?? def : def);
+}
+<div class="page-pad-top">
+    @await Html.PartialAsync("~/Views/components/_booking-stepper.cshtml", (object)new { step = 2 })
+    <h1 class="h-pg">Booking details</h1>
+    <p class="muted mt-2 mb-0" style="font-size:15px;">Tell @provider.BusinessName about the occasion. You can still change this for 24 hours after submitting.</p>
+</div>
+
+<div class="page-pad" style="padding-top:26px;">
+<div class="row g-4">
+    <div class="col-lg-8">
+        @await Html.PartialAsync("~/Views/partials/_flash.cshtml")
+        @if (problems > 0)
+        {
+            <div class="alert-w a-err mb-4">
+                <i class="bi bi-exclamation-circle-fill" style="font-size:18px;"></i>
+                <div><strong>This booking could not be submitted.</strong><br>
+                    @if (errors.Has("service_date"))
+                    {
+                        @errors.First("service_date")
+                    }
+                    else if (errors.Has("my_event_id"))
+                    {
+                        <text>That event could not be used. <a href="@availabilityUrl" style="color:#7D392E;font-weight:700;text-decoration:underline;">Go back and choose again</a>.</text>
+                    }
+                    else
+                    {
+                        @($"{(problems == 1 ? "One field needs" : $"{problems} fields need")} fixing below.")
+                    }
+                </div>
+            </div>
+        }
+        <form method="post" action="@Url.RouteUrl("customer.bookings.review")" id="booking-details-form">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="provider_service_id" value="@providerService.ProviderServiceId">
+            <input type="hidden" name="service_date" value="@serviceDate">
+            <input type="hidden" name="service_time" value="@serviceTime">
+            @if (myEvent != null) { <input type="hidden" name="my_event_id" value="@myEvent.MyEventId"> }
+
+            <div class="card-w form-card" style="padding:30px;">
+                <div class="row g-3">
+                    <div class="col-sm-6"><div class="field">
+                        <label>Service date <span style="color:var(--w-danger);">*</span></label>
+                        <a href="@availabilityUrl" class="inp inp-static @(errors.Has("service_date") ? "inp-err" : "")" title="Change date">
+                            <i class="bi bi-calendar3"></i> @date.ToString("d MMM yyyy")<span class="inp-static-act">Change</span></a>
+                    </div></div>
+                    <div class="col-sm-6"><div class="field">
+                        <label>Service time <span style="color:var(--w-danger);">*</span></label>
+                        <a href="@availabilityUrl" class="inp inp-static @(errors.Has("service_time") ? "inp-err" : "")" title="Change time">
+                            <i class="bi bi-clock"></i> @timeLabel<span class="inp-static-act">Change</span></a>
+                        @if (errors.Has("service_time")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> Choose one of the provider's time slots.</div> }
+                    </div></div>
+                </div>
+
+                <div class="field">
+                    <label for="venue_address">Venue address <span style="color:var(--w-danger);">*</span></label>
+                    <div class="inp-icon"><i class="bi bi-geo-alt" @(errors.Has("venue_address") ? "style=\"color:var(--w-danger);\"" : "")></i>
+                        <input type="text" name="venue_address" id="venue_address" class="inp @(errors.Has("venue_address") ? "inp-err" : "")"
+                               value="@Val("venue_address")" required maxlength="255" placeholder="Hall name, street, district, city"></div>
+                    @if (errors.Has("venue_address"))
+                    {
+                        <div class="help-err"><i class="bi bi-exclamation-circle"></i> Venue address is required so the provider can plan travel.</div>
+                    }
+                    else
+                    {
+                        <div class="help">The provider uses this to plan travel and setup time.</div>
+                    }
+                </div>
+
+                <div class="row g-3">
+                    <div class="col-sm-6"><div class="field">
+                        <label for="guest_count">Number of guests@(providerService.PriceUnit == "Per Guest" ? " <span style=\"color:var(--w-danger);\">*</span>" : "")</label>
+                        <div class="inp-icon"><i class="bi bi-people"></i>
+                            <input type="number" name="guest_count" id="guest_count" class="inp @(errors.Has("guest_count") ? "inp-err" : "")"
+                                   value="@Val("guest_count")" min="0" placeholder="e.g. 220"></div>
+                        @if (providerService.PriceUnit == "Per Guest") { <div class="help">This service is priced per guest.</div> }
+                        @if (errors.Has("guest_count")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("guest_count")</div> }
+                    </div></div>
+                    <div class="col-sm-6"><div class="field">
+                        <label for="quantity">Quantity</label>
+                        <div class="inp-icon"><i class="bi bi-123"></i>
+                            <input type="number" name="quantity" id="quantity" class="inp @(errors.Has("quantity") ? "inp-err" : "")"
+                                   value="@Val("quantity", "1")" min="1" required></div>
+                        @if (errors.Has("quantity")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("quantity")</div> }
+                    </div></div>
+                </div>
+
+                <div class="field mb-0">
+                    <label for="special_requirements">Special requirements</label>
+                    <textarea name="special_requirements" id="special_requirements" class="inp inp-area @(errors.Has("special_requirements") ? "inp-err" : "")"
+                              rows="4" maxlength="1000" placeholder="Anything the provider should know: gender preferences, restricted areas, must-have shots, arrival time.">@Val("special_requirements")</textarea>
+                    <div class="help"><span id="req-count">0</span> of 1000 characters</div>
+                    @if (errors.Has("special_requirements")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("special_requirements")</div> }
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card-w" style="padding:26px;">
+            <div class="lbl mb-3">Booking summary</div>
+            <div class="d-flex gap-3 mb-3">
+                <div style="width:70px;height:56px;border-radius:var(--r-sm);overflow:hidden;flex:none;">
+                    @if (providerService.PortfolioUrl != null || provider.LogoUrl != null)
+                    {
+                        <img src="@WijhaHelpers.ImageUrl(providerService.PortfolioUrl ?? provider.LogoUrl!)" alt="@providerService.OfferingTitle" style="width:100%;height:100%;object-fit:cover;display:block;">
+                    }
+                    else
+                    {
+                        @await Html.PartialAsync("~/Views/components/_decor-photo.cshtml", (object)new { seed = providerService.ProviderServiceId, height = "100%" })
+                    }
+                </div>
+                <div>
+                    <div style="font-weight:700;font-size:15px;line-height:1.3;">@providerService.OfferingTitle</div>
+                    <div class="muted" style="font-size:13px;">@provider.BusinessName</div>
+                </div>
+            </div>
+            <hr class="divider my-3">
+            <div class="sum-row"><span class="k">Event</span><span class="v">@(myEvent != null ? myEvent.EventName : "Standalone booking")</span></div>
+            <div class="sum-row"><span class="k">Service date</span><span class="v">@date.ToString("d MMM yyyy")</span></div>
+            <div class="sum-row"><span class="k">Service time</span><span class="v">@timeLabel</span></div>
+            <div class="sum-row"><span class="k">Venue</span><span class="v" id="sum-venue" style="max-width:60%;overflow-wrap:anywhere;"></span></div>
+            <div class="sum-row"><span class="k">Guests</span><span class="v" id="sum-guests"></span></div>
+            <div class="sum-row"><span class="k">Quantity</span><span class="v" id="sum-qty"></span></div>
+            <hr class="divider my-3">
+            <div class="d-flex justify-content-between align-items-baseline mb-3">
+                <span class="muted" style="font-size:15px;">Agreed price</span>
+                <span class="price" style="font-size:26px;" id="sum-price">SAR @providerService.Price.ToString("N0")</span>
+            </div>
+            @if (myEvent != null && eventBudget > 0)
+            {
+                double spentPct = (double)(eventSpent / eventBudget * 100);
+                <div class="ev-budget mb-3">
+                    <div class="d-flex justify-content-between gap-2">
+                        <span class="lbl">Event budget after this</span>
+                        <span style="font-size:13px;font-weight:700;" id="sum-budget"></span>
+                    </div>
+                    <div class="ev-bar mt-2">
+                        <span style="width:@Math.Min(100, spentPct).ToString("F0")%;background:var(--w-green-600);"></span>
+                        <span id="sum-budget-bar" style="width:0;background:var(--w-sand-400);"></span>
+                    </div>
+                </div>
+            }
+            <button type="submit" form="booking-details-form" class="btn btn-w btn-block btn-lg-w">Continue to review</button>
+            @if (problems > 0)
+            {
+                <p class="text-center mt-3 mb-0" style="font-size:13px;font-weight:700;color:var(--w-danger);">@problems @(problems == 1 ? "problem" : "problems") to fix</p>
+            }
+            else
+            {
+                <a href="@availabilityUrl" class="d-block text-center mt-3 muted" style="font-size:13px;">Change date or time</a>
+            }
+        </div>
+    </div>
+</div>
+</div>
+
+@section scripts {
+<script>
+(function () {
+    const price = @providerService.Price.ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
+    const perGuest = @(providerService.PriceUnit == "Per Guest" ? "true" : "false");
+    const spent = @eventSpent.ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
+    const budget = @eventBudget.ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
+    const $ = function (id) { return document.getElementById(id); };
+    const fmt = function (n) { return Math.round(n).toLocaleString('en-US'); };
+    const missing = '<span style="color:var(--w-danger);">Missing</span>';
+
+    function render() {
+        const venue = $('venue_address').value.trim();
+        const guests = parseInt($('guest_count').value, 10);
+        const qty = Math.max(1, parseInt($('quantity').value, 10) || 1);
+        const units = perGuest ? (guests > 0 ? guests : qty) : qty;
+        const total = price * units;
+
+        $('sum-venue').innerHTML = venue ? venue.replace(/[&<>"]/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; }) : missing;
+        $('sum-guests').textContent = guests > 0 ? fmt(guests) : '–';
+        $('sum-qty').textContent = qty;
+        $('sum-price').textContent = 'SAR ' + fmt(total);
+        $('req-count').textContent = $('special_requirements').value.length;
+
+        if ($('sum-budget') && budget > 0) {
+            const after = spent + total;
+            $('sum-budget').textContent = fmt(after) + ' / ' + fmt(budget);
+            $('sum-budget').style.color = after > budget ? 'var(--w-danger)' : 'var(--w-green-800)';
+            $('sum-budget-bar').style.width = Math.max(0, Math.min(100, after / budget * 100) - Math.min(100, spent / budget * 100)) + '%';
+        }
+    }
+    ['venue_address', 'guest_count', 'quantity', 'special_requirements'].forEach(function (id) { $(id).addEventListener('input', render); });
+    render();
+})();
+</script>
+}

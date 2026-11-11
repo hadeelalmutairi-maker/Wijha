@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+    @await Html.PartialAsync("~/Views/partials/_head.cshtml")
+</head>
+<body>
+<div class="app-frame">
+    @await Html.PartialAsync("~/Views/partials/_nav-guest.cshtml")
+    <div class="auth-wrap">
+        <div class="auth-brand">
+            <svg width="320" height="200" viewBox="0 0 320 200" fill="none" style="position:absolute;right:-60px;top:-30px;opacity:.26;"><circle cx="180" cy="70" r="130" fill="#526659"/></svg>
+            <svg width="260" height="260" viewBox="0 0 260 260" fill="none" style="position:absolute;left:-70px;bottom:-70px;opacity:.22;"><circle cx="130" cy="130" r="130" fill="#708275"/></svg>
+            <div style="position:relative;">
+                <svg width="46" height="38" viewBox="0 0 46 38" fill="none" style="margin-bottom:18px;" aria-hidden="true">
+                    <path d="M8 0l4 10 10 4-10 4-4 10-4-10-10-4 10-4 4-10z" fill="#CAA380" transform="translate(6 2)"/></svg>
+                @RenderSection("quote", required: false)
+                @if (IsSectionDefined("quote_by"))
+                {
+                    <div class="auth-mini mt-4">@RenderSection("quote_by", required: false)</div>
+                }
+            </div>
+            <div class="auth-mini" style="position:relative;font-size:13px;">&copy; @DateTime.Now.Year Wijha &middot; Jubail, Saudi Arabia</div>
+        </div>
+        <div class="auth-form">
+            <div class="auth-form-inner">
+                @await Html.PartialAsync("~/Views/partials/_flash.cshtml")
+                @RenderBody()
+            </div>
+        </div>
+    </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+document.querySelectorAll('[data-pw-toggle]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+        var input = document.getElementById(btn.getAttribute('data-pw-toggle'));
+        var show = input.type === 'password';
+        input.type = show ? 'text' : 'password';
+        btn.querySelector('i').className = show ? 'bi bi-eye-slash' : 'bi bi-eye';
+        btn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+    });
+});
+</script>
+@RenderSection("scripts", required: false)
+</body>
+</html>

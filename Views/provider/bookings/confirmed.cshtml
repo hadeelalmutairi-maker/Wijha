@@ -1,0 +1,119 @@
+@using Wijha.Models
+@using Wijha.Support
+@{
+    Layout = "~/Views/layouts/_provider.cshtml";
+    ViewBag.Title = "Confirmed bookings | Wijha";
+    var bookings = (LengthAwarePaginator<Booking>)ViewBag.Bookings;
+    string filter = ViewBag.Filter ?? "upcoming";
+    int monthCount = ViewBag.MonthCount ?? 0;
+    decimal monthValue = ViewBag.MonthValue ?? 0m;
+    var counts = (Dictionary<string, int>)ViewBag.Counts;
+    var chips = new Dictionary<string, string> { ["upcoming"] = "Upcoming", ["awaiting"] = "Awaiting payment", ["completed"] = "Completed", ["all"] = "All confirmed" };
+}
+<div class="page-pad">
+    @await Html.PartialAsync("~/Views/partials/_flash.cshtml")
+
+    <div class="d-flex justify-content-between align-items-end mb-4 flex-wrap gap-3">
+        <div>
+            <h1 class="h-pg mb-0">Confirmed bookings</h1>
+            <p class="muted mt-2 mb-0" style="font-size:15px;">@monthCount booking@(monthCount == 1 ? "" : "s") this month &middot; SAR @monthValue.ToString("N0") booked</p>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+            @foreach (var kv in chips)
+            {
+                <a href="@Url.RouteUrl("provider.bookings.confirmed", new { filter = kv.Key })" class="chip btn-sm-w text-decoration-none @(filter == kv.Key ? "chip-on" : "")">@kv.Value (@(counts.ContainsKey(kv.Key) ? counts[kv.Key] : 0))</a>
+            }
+            <a href="@Url.RouteUrl("provider.bookings.export", new { filter })" class="chip btn-sm-w text-decoration-none"><i class="bi bi-download"></i> Export</a>
+        </div>
+    </div>
+
+    @if (!bookings.Items.Any())
+    {
+        <div class="card-w text-center" style="padding:60px 30px;">
+            @await Html.PartialAsync("~/Views/components/_empty-inbox.cshtml")
+            <h2 class="h-sec mt-4">Nothing here yet</h2>
+            <p class="lead-w mt-3 mb-4" style="max-width:480px;margin:0 auto;">
+                @if (filter == "awaiting") { <text>Every accepted booking has been paid.</text> }
+                else if (filter == "completed") { <text>Completed jobs show up here after the service day.</text> }
+                else { <text>Accepted bookings appear here once you accept a request.</text> }
+            </p>
+            <a href="@Url.RouteUrl("provider.bookings.index")" class="btn btn-w">Go to requests</a>
+        </div>
+    }
+    else
+    {
+        <div class="card-w d-none d-md-block" style="overflow:hidden;">
+            <div style="overflow-x:auto;">
+            <table class="cmp">
+                <tr>
+                    <th class="rowh" style="width:260px;">Service and customer</th>
+                    <th class="rowh" style="width:150px;">Date and time</th>
+                    <th class="rowh" style="width:220px;">Venue</th>
+                    <th class="rowh" style="width:110px;">Price</th>
+                    <th class="rowh" style="width:150px;">Payment</th>
+                    <th class="rowh" style="width:150px;">Action</th>
+                </tr>
+                @foreach (var booking in bookings.Items)
+                {
+                    var pay = booking.PaymentState();
+                    <tr>
+                        <td style="white-space:normal;"><strong>@booking.ProviderService?.OfferingTitle</strong>
+                            <div class="muted" style="font-size:13px;">@booking.Customer?.FirstName @booking.Customer?.LastName &middot; @booking.Reference</div></td>
+                        <td>@booking.ServiceDate.ToString("dd MMM yyyy")
+                            <div class="muted" style="font-size:13px;">@booking.ServiceTime.ToString("HH:mm")</div></td>
+                        <td style="white-space:normal;">@booking.VenueAddress
+                            @if (booking.GuestCount.HasValue) { <div class="muted" style="font-size:13px;">@booking.GuestCount guests</div> }</td>
+                        <td><span class="price">SAR @booking.AgreedPrice.ToString("N0")</span></td>
+                        <td>
+                            <span class="badge-w @pay["badge"]">@pay["label"]</span>
+                            @if (booking.Payment != null) { <div class="muted" style="font-size:12.5px;margin-top:4px;">@booking.Payment.InvoiceNumber</div> }
+                        </td>
+                        <td>
+                            @if (booking.BookingStatus == "Completed" && booking.Review != null)
+                            {
+                                <span class="badge-w b-gold"><i class="bi bi-star-fill"></i> Rated @booking.Review.Rating.ToString("F1")</span>
+                            }
+                            else
+                            {
+                                <div class="d-flex gap-2 flex-nowrap">
+                                    <a href="@Url.RouteUrl("provider.bookings.show", new { id = booking.BookingId })" class="btn btn-w-ghost btn-sm-w">View</a>
+                                    <a href="@Url.RouteUrl("provider.messages.show", new { id = booking.Customer?.CustomerId })" class="btn btn-w-ghost btn-sm-w" title="Message @booking.Customer?.FirstName"><i class="bi bi-chat-dots"></i></a>
+                                </div>
+                            }
+                        </td>
+                    </tr>
+                }
+            </table>
+            </div>
+        </div>
+
+        <div class="d-md-none">
+            @foreach (var booking in bookings.Items)
+            {
+                var pay = booking.PaymentState();
+                <div class="card-w mb-3" style="padding:18px;">
+                    <div class="d-flex justify-content-between align-items-start gap-2">
+                        <div style="min-width:0;">
+                            <div style="font-weight:700;font-size:15px;line-height:1.3;">@booking.ProviderService?.OfferingTitle</div>
+                            <div class="muted" style="font-size:12.5px;">@booking.Customer?.FirstName @booking.Customer?.LastName &middot; @booking.Reference</div>
+                        </div>
+                        <span class="price flex-shrink-0" style="font-size:18px;">SAR @booking.AgreedPrice.ToString("N0")</span>
+                    </div>
+                    <div class="muted mt-2" style="font-size:13px;"><i class="bi bi-calendar3 me-1"></i>@booking.ServiceDate.ToString("dd MMM yyyy") &middot; @booking.ServiceTime.ToString("HH:mm")</div>
+                    <div class="muted" style="font-size:13px;"><i class="bi bi-geo-alt me-1"></i>@booking.VenueAddress</div>
+                    <div class="d-flex gap-2 flex-wrap mt-2">
+                        <span class="badge-w @pay["badge"]">@pay["label"]</span>
+                        @if (booking.Review != null) { <span class="badge-w b-gold"><i class="bi bi-star-fill"></i> Rated @booking.Review.Rating.ToString("F1")</span> }
+                    </div>
+                    <hr class="divider my-3">
+                    <div class="d-flex gap-2">
+                        <a href="@Url.RouteUrl("provider.bookings.show", new { id = booking.BookingId })" class="btn btn-w-ghost btn-sm-w">View</a>
+                        <a href="@Url.RouteUrl("provider.messages.show", new { id = booking.Customer?.CustomerId })" class="btn btn-w-ghost btn-sm-w"><i class="bi bi-chat-dots me-1"></i>Message</a>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <div class="mt-4">@Html.Raw(bookings.Links())</div>
+    }
+</div>

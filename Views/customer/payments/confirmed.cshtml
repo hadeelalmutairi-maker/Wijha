@@ -1,0 +1,113 @@
+@using Wijha.Models
+@model Booking
+@{
+    Layout = "~/Views/layouts/_customer.cshtml";
+    ViewBag.Title = "Booking confirmed | Wijha";
+    var ps = Model.ProviderService!;
+    var provider = (ServiceProvider)ViewBag.Provider;
+    var payment = (Payment)ViewBag.Payment;
+    var ev = (CustomerEvent?)ViewBag.Event;
+    decimal eventSpent = ViewBag.EventSpent ?? 0m;
+    var customer = Model.Customer!;
+    string serviceDateTime = $"{Model.ServiceDate.ToString("dddd, dd MMMM yyyy")} at {Model.ServiceTime.ToString("HH:mm")}";
+}
+<div class="hero-band">
+    <svg width="360" height="200" viewBox="0 0 360 200" style="position:absolute;left:-80px;top:-40px;opacity:.5;"><circle cx="180" cy="100" r="140" fill="#EFE6DA"/></svg>
+    <svg width="320" height="200" viewBox="0 0 320 200" style="position:absolute;right:-70px;bottom:-60px;opacity:.5;"><circle cx="160" cy="100" r="140" fill="#E8EDE9"/></svg>
+    <div class="hero-inner">
+        <svg width="104" height="104" viewBox="0 0 112 112" fill="none" style="margin:0 auto;display:block;">
+            <circle cx="56" cy="56" r="50" fill="#33463B"/><circle cx="56" cy="56" r="38" fill="#D8BD9E"/>
+            <path d="M41 57l11 11 21-23" stroke="#23342B" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M12 16l3 7.8 7.8 3-7.8 3-3 7.8-3-7.8L1 26.8l7.8-3L12 16z" fill="#CAA380"/>
+            <path d="M100 74l2.6 6.8 6.8 2.6-6.8 2.6-2.6 6.8-2.6-6.8-6.8-2.6 6.8-2.6L100 74z" fill="#CAA380"/>
+        </svg>
+        <h1 class="h-pg mt-4" style="font-size:42px;">Your booking is confirmed</h1>
+        <p class="lead-w mt-3" style="max-width:620px;margin:0 auto;">
+            @provider.BusinessName will deliver <strong style="color:var(--w-green-700);">@ps.OfferingTitle</strong>
+            @if (ev != null) { <text>for <strong style="color:var(--w-green-700);">@ev.EventName</strong></text> }
+            on @serviceDateTime.
+        </p>
+        <div class="d-flex gap-2 justify-content-center mt-4 flex-wrap">
+            <span class="badge-w b-ok" style="font-size:13px;padding:9px 16px;"><i class="bi bi-check-circle-fill"></i> Booking @Model.Reference &middot; @Model.BookingStatus</span>
+            <span class="badge-w b-gold" style="font-size:13px;padding:9px 16px;"><i class="bi bi-receipt"></i> Invoice @payment.InvoiceNumber &middot; @payment.PaymentStatus</span>
+        </div>
+    </div>
+</div>
+
+<div class="page-wrap" style="padding-top:34px;">
+    <div class="row g-4">
+        <div class="col-lg-8">
+            <div class="card-w" style="padding:30px;">
+                <div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-2">
+                    <div><div class="lbl">Tax invoice</div><h2 class="h-sec mt-1 mb-0">@payment.InvoiceNumber</h2></div>
+                    <div class="text-end">
+                        <div class="muted" style="font-size:13.5px;">Issued @payment.PaymentDate.ToString("dd MMM yyyy, HH:mm")</div>
+                        <span class="badge-w b-ok mt-2"><i class="bi bi-check-circle-fill"></i> @payment.PaymentStatus</span>
+                    </div>
+                </div>
+                <div class="row mb-4 g-3">
+                    <div class="col-md-6"><div class="lbl mb-2">Billed to</div>
+                        <div style="font-size:15px;line-height:1.7;color:var(--w-green-700);">@customer.FirstName @customer.LastName<br>@customer.Email<br>@customer.Phone<br>@customer.City, Saudi Arabia</div></div>
+                    <div class="col-md-6"><div class="lbl mb-2">Service provider</div>
+                        <div style="font-size:15px;line-height:1.7;color:var(--w-green-700);">@provider.BusinessName<br>@provider.Email<br>CR @provider.CommercialRegisterNo<br>@provider.City, Saudi Arabia</div></div>
+                </div>
+                <div style="overflow-x:auto;">
+                <table class="cmp" style="border:1px solid rgba(200,209,204,.6);border-radius:var(--r-md);overflow:hidden;">
+                    <tr><th class="rowh" style="width:auto;">Description</th><th class="rowh" style="width:90px;">Qty</th><th class="rowh" style="width:160px;">Amount</th></tr>
+                    <tr><td><strong>@ps.OfferingTitle</strong><div class="muted" style="font-size:13px;white-space:normal;">@Model.ServiceDate.ToString("dd MMM yyyy") &middot; @Model.ServiceTime.ToString("HH:mm") &middot; @Model.VenueAddress</div></td>
+                        <td>@Model.Quantity</td><td>SAR @Model.AgreedPrice.ToString("N2")</td></tr>
+                    <tr><td class="muted">Platform fee</td><td></td><td>SAR 0.00</td></tr>
+                    <tr><td style="font-weight:700;">Total paid (VAT included)</td><td></td><td><span class="price" style="font-size:20px;white-space:nowrap;">SAR @payment.Amount.ToString("N2")</span></td></tr>
+                </table>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mt-4 flex-wrap gap-3">
+                    <div class="muted" style="font-size:13.5px;">Paid with @payment.PaymentMethod &middot; Transaction @payment.TransactionRef</div>
+                    <a href="@Url.RouteUrl("invoice.show", new { id = Model.BookingId })" target="_blank" class="btn btn-w btn-sm-w"><i class="bi bi-printer me-2"></i>Print invoice</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card-w" style="padding:26px;">
+                <div class="lbl mb-3">Next steps</div>
+                <div class="tl">
+                    <div class="ti done"><div style="font-weight:700;font-size:15px;">Booking accepted</div>
+                        <div class="muted" style="font-size:13px;">@(Model.ProviderResponseDate.HasValue ? Model.ProviderResponseDate.Value.ToString("dd MMM yyyy, HH:mm") : "Not recorded")</div></div>
+                    <div class="ti done"><div style="font-weight:700;font-size:15px;">Payment received</div>
+                        <div class="muted" style="font-size:13px;">@payment.PaymentDate.ToString("dd MMM yyyy, HH:mm")</div></div>
+                    @if (Model.IsEditable())
+                    {
+                        <div class="ti now"><div style="font-weight:700;font-size:15px;">You can edit until @Model.ModificationDeadline.ToString("dd MMM, HH:mm")</div>
+                            <div class="muted" style="font-size:13px;">Date, time, venue, guests and requirements</div></div>
+                    }
+                    <div class="ti @(!Model.IsEditable() ? "now" : "")"><div style="font-weight:700;font-size:15px;">Service day</div>
+                        <div class="muted" style="font-size:13px;">@Model.ServiceDate.ToString("dd MMM yyyy"), @Model.ServiceTime.ToString("HH:mm")</div></div>
+                    <div class="ti"><div style="font-weight:700;font-size:15px;">Rate @provider.BusinessName</div>
+                        <div class="muted" style="font-size:13px;">Available once the booking is completed</div></div>
+                </div>
+                <hr class="divider my-3">
+                <a href="@Url.RouteUrl("customer.messages.show", new { id = provider.ServiceProviderId })" class="btn btn-w-light btn-block mb-2"><i class="bi bi-chat-dots me-2"></i>Message the provider</a>
+                @if (ev != null)
+                {
+                    <a href="@Url.RouteUrl("customer.myevents.show", new { id = ev.MyEventId })" class="btn btn-w-ghost btn-block mb-2">Add another service to this event</a>
+                }
+                <a href="@Url.RouteUrl("customer.bookings.index")" class="btn btn-w-ghost btn-block">Back to my bookings</a>
+            </div>
+
+            @if (ev != null && ev.TotalBudget.HasValue && ev.TotalBudget > 0)
+            {
+                int pct = (int)Math.Min(100, Math.Round(eventSpent / ev.TotalBudget.Value * 100));
+                <div class="card-w mt-3" style="padding:22px;">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="lbl">@ev.EventName budget</span>
+                        <span style="font-weight:700;font-size:13.5px;color:var(--w-green-700);">@eventSpent.ToString("N0") / @ev.TotalBudget.Value.ToString("N0")</span>
+                    </div>
+                    <div style="height:10px;background:#E3DED6;border-radius:999px;">
+                        <div style="width:@pct%;height:10px;background:var(--w-sand-400);border-radius:999px;"></div>
+                    </div>
+                    <div class="muted mt-2" style="font-size:13px;">@(ev.Bookings?.Count ?? 0) bookings &middot; SAR @(Math.Max(0, ev.TotalBudget.Value - eventSpent).ToString("N0")) left to spend</div>
+                </div>
+            }
+        </div>
+    </div>
+</div>

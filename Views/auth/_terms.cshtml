@@ -1,0 +1,13 @@
+@using Wijha.Support.Http
+@{
+    bool checked_ = Flash.Old(ViewContext.HttpContext, "terms") == "1";
+    var errors = new ErrorBag(ViewContext);
+}
+<div class="mb-4">
+    <label class="remember-check">
+        <input type="checkbox" name="terms" value="1" required @(checked_ ? "checked" : "")>
+        <span class="box @(errors.Has("terms") ? "box-err" : "")"><i class="bi bi-check-lg"></i></span>
+        <span>I agree to the <span class="terms-link">Terms of Use</span> and the <span class="terms-link">Privacy Policy</span>.</span>
+    </label>
+    @if (errors.Has("terms")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("terms")</div> }
+</div>

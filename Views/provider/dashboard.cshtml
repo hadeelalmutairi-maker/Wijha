@@ -1,0 +1,169 @@
+@using Wijha.Models
+@model ServiceProvider
+@{
+    Layout = "~/Views/layouts/_provider.cshtml";
+    ViewBag.Title = "Provider dashboard | Wijha";
+    var stats = (Dictionary<string, object>)ViewBag.Stats;
+    var pendingBookings = (IEnumerable<Booking>)ViewBag.PendingBookings;
+    var recentReviews = (IEnumerable<Review>)ViewBag.RecentReviews;
+    var monthLabels = (IEnumerable<string>)ViewBag.MonthLabels;
+    var bookingsTrend = (IEnumerable<int>)ViewBag.BookingsTrend;
+    var revenueTrend = (IEnumerable<decimal>)ViewBag.RevenueTrend;
+}
+<div class="page-pad">
+    @await Html.PartialAsync("~/Views/partials/_flash.cshtml")
+
+    <div class="card-w mb-4" style="padding:28px 32px;background:var(--w-green-700);border:0;position:relative;overflow:hidden;">
+        <svg width="260" height="260" viewBox="0 0 260 260" fill="none" style="position:absolute;right:-60px;top:-80px;opacity:.18;"><circle cx="130" cy="130" r="130" fill="#FDFBF6"/></svg>
+        <div class="d-flex justify-content-between align-items-end flex-wrap gap-3" style="position:relative;">
+            <div>
+                <div class="d-flex align-items-center gap-2 mb-2" style="color:var(--w-sand-300);font-size:13px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;">
+                    <i class="bi bi-shop"></i> @Model.BusinessName &middot; @Model.City
+                </div>
+                <h1 class="h-pg mb-0" style="color:#fff;">Dashboard</h1>
+            </div>
+            @if (Model.IsApproved())
+            {
+                <span class="badge-w b-gold"><i class="bi bi-patch-check-fill"></i> Approved provider</span>
+            }
+            else
+            {
+                <span class="badge-w b-warn"><i class="bi bi-hourglass-split"></i> @Model.ApprovalStatus</span>
+            }
+        </div>
+    </div>
+
+    @if (!Model.IsApproved())
+    {
+        <div class="alert-w a-info mb-4">
+            <i class="bi bi-info-circle-fill" style="font-size:18px;"></i>
+            <div>Your business is @Model.ApprovalStatus?.ToLower(). You cannot publish services until an administrator approves your account.</div>
+        </div>
+    }
+
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3"><div class="kpi">
+            <div class="d-flex justify-content-between align-items-start">
+                <div><div class="lbl">Awaiting reply</div><div class="n mt-2">@stats["pending"]</div></div>
+                <i class="bi bi-hourglass-split" style="font-size:20px;color:var(--w-sand-400);"></i>
+            </div>
+        </div></div>
+        <div class="col-6 col-md-3"><div class="kpi">
+            <div class="d-flex justify-content-between align-items-start">
+                <div><div class="lbl">Accepted</div><div class="n mt-2">@stats["accepted"]</div></div>
+                <i class="bi bi-calendar-check" style="font-size:20px;color:var(--w-green-600);"></i>
+            </div>
+        </div></div>
+        <div class="col-6 col-md-3"><div class="kpi">
+            <div class="d-flex justify-content-between align-items-start">
+                <div><div class="lbl">Published services</div><div class="n mt-2">@stats["services"]</div></div>
+                <i class="bi bi-grid" style="font-size:20px;color:var(--w-green-600);"></i>
+            </div>
+        </div></div>
+        <div class="col-6 col-md-3"><div class="kpi">
+            <div class="d-flex justify-content-between align-items-start">
+                <div><div class="lbl">Unread messages</div><div class="n mt-2">@stats["unread_messages"]</div></div>
+                <i class="bi bi-chat-dots" style="font-size:20px;color:var(--w-sand-400);"></i>
+            </div>
+        </div></div>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-lg-6">
+            <div class="card-w" style="padding:22px;">
+                <div class="lbl mb-3">Bookings in the last 6 months</div>
+                <canvas id="chart-bookings" height="180"></canvas>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card-w" style="padding:22px;">
+                <div class="lbl mb-3">Revenue (paid) in the last 6 months</div>
+                <canvas id="chart-revenue" height="180"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-md-7">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h2 class="h-sec mb-0">Pending requests</h2>
+                <a href="@Url.RouteUrl("provider.bookings.index")" class="btn btn-w-ghost btn-sm-w">View all</a>
+            </div>
+            @if (pendingBookings.Any())
+            {
+                @foreach (var booking in pendingBookings)
+                {
+                    <a href="@Url.RouteUrl("provider.bookings.show", new { id = booking.BookingId })" class="req d-block text-decoration-none" style="color:inherit;">
+                        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+                            <div>
+                                <h3 class="h-card">@booking.ProviderService?.OfferingTitle</h3>
+                                <div class="muted" style="font-size:13.5px;">@booking.Customer?.FirstName @booking.Customer?.LastName &middot; @booking.ServiceDate.ToString("dd MMM yyyy")</div>
+                            </div>
+                            <span class="price" style="font-size:20px;">SAR @booking.AgreedPrice.ToString("N0")</span>
+                        </div>
+                    </a>
+                }
+            }
+            else
+            {
+                <div class="card-w text-center" style="padding:40px;">
+                    <p class="muted mb-0">No requests waiting. <a href="@Url.RouteUrl("provider.bookings.index")">View all bookings</a>.</p>
+                </div>
+            }
+        </div>
+
+        <div class="col-md-5">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h2 class="h-sec mb-0">Recent reviews</h2>
+                <a href="@Url.RouteUrl("provider.reviews.index")" class="btn btn-w-ghost btn-sm-w">View all</a>
+            </div>
+            @if (recentReviews.Any())
+            {
+                @foreach (var review in recentReviews)
+                {
+                    <div class="card-w mb-3" style="padding:18px;">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div style="font-weight:700;font-size:14.5px;">@review.Booking?.Customer?.FirstName @review.Booking?.Customer?.LastName</div>
+                            <span style="color:var(--w-sand-400);letter-spacing:1.5px;font-size:13px;">
+                                @for (int i = 0; i < 5; i++) { <i class="bi bi-star@(i < review.Rating ? "-fill" : "")"></i> }
+                            </span>
+                        </div>
+                        @if (review.ReviewText != null)
+                        {
+                            <p class="muted mt-2 mb-0 clamp-2" style="font-size:13.5px;line-height:1.55;">@review.ReviewText</p>
+                        }
+                    </div>
+                }
+            }
+            else
+            {
+                <div class="card-w text-center" style="padding:40px;">
+                    <p class="muted mb-0">No reviews yet.</p>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@section scripts {
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+  const provMonthLabels = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(monthLabels));
+  const provBookingsTrend = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(bookingsTrend));
+  const provRevenueTrend = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(revenueTrend));
+  const greenLine = '#3A5240';
+  const sandLine = '#C9A24B';
+
+  new Chart(document.getElementById('chart-bookings'), {
+    type: 'line',
+    data: { labels: provMonthLabels, datasets: [{ label: 'Bookings', data: provBookingsTrend, borderColor: greenLine, backgroundColor: 'rgba(58,82,64,.12)', tension: .35, fill: true, pointRadius: 3 }] },
+    options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } },
+  });
+
+  new Chart(document.getElementById('chart-revenue'), {
+    type: 'bar',
+    data: { labels: provMonthLabels, datasets: [{ label: 'Revenue (SAR)', data: provRevenueTrend, backgroundColor: sandLine, borderRadius: 6 }] },
+    options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } },
+  });
+</script>
+}

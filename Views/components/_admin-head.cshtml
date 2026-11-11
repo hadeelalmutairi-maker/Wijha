@@ -1,0 +1,13 @@
+@model dynamic
+@{
+    string title = Model?.title ?? "";
+    string? subtitle = Model?.subtitle;
+    string? eyebrow = Model?.eyebrow;
+}
+<div class="admin-head">
+    <div style="min-width:0;">
+        @if (eyebrow != null) { <div class="lbl mb-1">@eyebrow</div> }
+        <h1 class="h-pg mb-0">@title</h1>
+        @if (subtitle != null) { <p class="muted mt-2 mb-0" style="font-size:15px;">@subtitle</p> }
+    </div>
+</div>

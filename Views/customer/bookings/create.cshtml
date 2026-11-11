@@ -1,0 +1,247 @@
+@using Wijha.Models
+@using Wijha.Helpers
+@{
+    Layout = "~/Views/layouts/_customer.cshtml";
+    var providerService = (ProviderService)ViewBag.ProviderService;
+    var provider = (ServiceProvider)ViewBag.Provider;
+    ViewBag.Title = $"Check availability | {providerService.OfferingTitle} | Wijha";
+    string? selectedDate = ViewBag.SelectedDate;
+    string? selectedTime = ViewBag.SelectedTime;
+    var calendarWeeks = (IEnumerable<IEnumerable<Dictionary<string,object>?>>)ViewBag.CalendarWeeks;
+    var daySlots = (IEnumerable<AvailabilitySchedule>)ViewBag.DaySlots;
+    bool jumpedToNextAvailable = ViewBag.JumpedToNextAvailable ?? false;
+    bool monthHasOpenSlot = ViewBag.MonthHasOpenSlot ?? true;
+    var nextOpenSlot = (AvailabilitySchedule?)ViewBag.NextOpenSlot;
+    var nearestFreeDates = (IEnumerable<AvailabilitySchedule>)ViewBag.NearestFreeDates;
+    string month = ViewBag.Month ?? DateTime.Today.ToString("yyyy-MM");
+    DateTime monthDate = DateTime.ParseExact(month, "yyyy-MM", null);
+    var myEvents = (IEnumerable<CustomerEvent>)ViewBag.MyEvents;
+    Func<TimeOnly, string> hm = t => t.ToString("HH:mm");
+    var selectedDay = selectedDate != null ? DateOnly.Parse(selectedDate) : (DateOnly?)null;
+    bool dayIsOpen = daySlots.Any(s => s.AvailabilityStatus == "Open");
+    string? duration = providerService.DurationHours.HasValue ? providerService.DurationHours.Value.ToString("G") : null;
+    var baseParams = new { provider_service_id = providerService.ProviderServiceId };
+}
+@await Html.PartialAsync("~/Views/components/_photo-hero.cshtml", (object)new { image="table", title="Check Availability", subtitle="Select a date and time slot that works for your event.", back=Url.RouteUrl("providers.show", new { id = provider.ServiceProviderId }), back_label=$"Back to {provider.BusinessName}" })
+
+<div class="page-pad-top">
+    @await Html.PartialAsync("~/Views/partials/_flash.cshtml")
+    @await Html.PartialAsync("~/Views/components/_booking-stepper.cshtml", (object)new { step = 1 })
+    <h2 class="h-pg mb-1">@providerService.OfferingTitle</h2>
+    <p class="muted mb-0" style="font-size:15px;">@provider.BusinessName &middot; @providerService.ServiceCity. Pick an open day, then a time slot.</p>
+</div>
+
+<div class="page-pad" style="padding-top:26px;">
+<div class="row g-4">
+    <div class="col-lg-8">
+        <div class="card-w cal-card" style="padding:28px;">
+            @if (jumpedToNextAvailable)
+            {
+                <div class="alert-w a-info mb-4">
+                    <i class="bi bi-info-circle-fill" style="font-size:18px;"></i>
+                    <div>@provider.BusinessName has nothing open this month, so we jumped ahead to <strong>@monthDate.ToString("MMMM yyyy")</strong>, the nearest month with an open date.</div>
+                </div>
+            }
+            else if (!monthHasOpenSlot)
+            {
+                <div class="alert-w a-err mb-4">
+                    <i class="bi bi-exclamation-circle-fill" style="font-size:18px;"></i>
+                    <div>
+                        <strong>No open dates in @monthDate.ToString("MMMM yyyy").</strong>
+                        @if (nextOpenSlot != null)
+                        {
+                            <br />The nearest open date is <a href="@Url.RouteUrl("customer.bookings.create", new { provider_service_id = providerService.ProviderServiceId, month = nextOpenSlot.AvailableDate.ToString("yyyy-MM"), date = nextOpenSlot.AvailableDate.ToString("yyyy-MM-dd") })" style="color:#7D392E;font-weight:700;text-decoration:underline;">@nextOpenSlot.AvailableDate.ToString("dd MMMM yyyy")</a>.
+                        }
+                        else
+                        {
+                            <br />This provider has no upcoming open dates for this service right now.
+                        }
+                    </div>
+                </div>
+            }
+
+            <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+                <div class="d-flex align-items-center gap-3">
+                    @if (monthDate > DateTime.Today.AddDays(-(int)DateTime.Today.Day + 1))
+                    {
+                        <a href="@Url.RouteUrl("customer.bookings.create", new { provider_service_id = providerService.ProviderServiceId, month = monthDate.AddMonths(-1).ToString("yyyy-MM") })" class="chip btn-sm-w" aria-label="Previous month"><i class="bi bi-chevron-left"></i></a>
+                    }
+                    else
+                    {
+                        <span class="chip btn-sm-w" style="opacity:.4;"><i class="bi bi-chevron-left"></i></span>
+                    }
+                    <h2 class="h-sec mb-0">@monthDate.ToString("MMMM yyyy")</h2>
+                    <a href="@Url.RouteUrl("customer.bookings.create", new { provider_service_id = providerService.ProviderServiceId, month = monthDate.AddMonths(1).ToString("yyyy-MM") })" class="chip btn-sm-w" aria-label="Next month"><i class="bi bi-chevron-right"></i></a>
+                </div>
+                <div class="legend">
+                    <span><span class="k" style="background:var(--w-green-700);border:1.5px solid var(--w-green-700);"></span>Free</span>
+                    <span><span class="k" style="background:#F5E6E1;border:1.5px solid #EBD3CB;"></span>Fully booked</span>
+                    <span><span class="k" style="background:#fff;border:1.5px solid var(--w-line);"></span>No schedule</span>
+                </div>
+            </div>
+
+            <div class="cal">
+                <div class="dow">Sun</div><div class="dow">Mon</div><div class="dow">Tue</div><div class="dow">Wed</div><div class="dow">Thu</div><div class="dow">Fri</div><div class="dow">Sat</div>
+                @{ var today = DateOnly.FromDateTime(DateTime.Today); }
+                @foreach (var week in calendarWeeks)
+                {
+                    foreach (var cell in week)
+                    {
+                        if (cell == null)
+                        {
+                            <div class="d off"></div>
+                        }
+                        else
+                        {
+                            var cellDate = (DateOnly)cell["date"];
+                            var cellStr = (string)cell["dateStr"];
+                            var cellStatus = (string)cell["status"];
+                            var cellCount = (int)cell["count"];
+                            if (cellStatus == "none" || cellDate <= today)
+                            {
+                                <div class="d @(cellDate <= today ? "off" : "")">@cellDate.Day</div>
+                            }
+                            else
+                            {
+                                <a href="@Url.RouteUrl("customer.bookings.create", new { provider_service_id = providerService.ProviderServiceId, month, date = cellStr })"
+                                   class="d @cellStatus @(selectedDate == cellStr ? "sel" : "")" style="text-decoration:none;"
+                                   aria-label="@cellDate.ToString("d MMMM"), @(cellStatus == "free" ? "free" : "fully booked")">
+                                    @cellDate.Day<span class="mini">@cellCount slot@(cellCount == 1 ? "" : "s")</span>
+                                </a>
+                            }
+                        }
+                    }
+                }
+            </div>
+
+            @if (selectedDay.HasValue && daySlots.Any())
+            {
+                <hr class="divider my-4">
+                <div class="lbl mb-3">Time slots on @selectedDay.Value.ToString("dddd, d MMMM yyyy")</div>
+                <div class="d-flex gap-2 flex-wrap">
+                    @foreach (var slot in daySlots)
+                    {
+                        string slotTime = hm(slot.StartTime);
+                        if (slot.AvailabilityStatus == "Open")
+                        {
+                            <a href="@Url.RouteUrl("customer.bookings.create", new { provider_service_id = providerService.ProviderServiceId, month, date = selectedDate, time = slotTime })"
+                               class="chip @(selectedTime == slotTime ? "chip-on" : "")">
+                                <i class="bi bi-clock"></i> @slotTime &ndash; @hm(slot.EndTime) &middot; free
+                            </a>
+                        }
+                        else
+                        {
+                            <span class="chip chip-off"><i class="bi bi-slash-circle"></i> @slotTime &ndash; @hm(slot.EndTime) &middot; @slot.AvailabilityStatus.ToLower()</span>
+                        }
+                    }
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        @if (selectedDay.HasValue && dayIsOpen && selectedTime != null)
+        {
+            var chosenSlot = daySlots.FirstOrDefault(s => hm(s.StartTime) == selectedTime);
+            int openCount = daySlots.Count(s => s.AvailabilityStatus == "Open");
+            <div class="alert-w a-ok mb-3">
+                <i class="bi bi-check-circle-fill" style="font-size:18px;"></i>
+                <div><strong>@selectedDay.Value.ToString("d MMMM") is free.</strong><br>@provider.BusinessName has @(openCount == 1 ? "an open slot" : $"{openCount} open slots") that day.</div>
+            </div>
+            <div class="card-w" style="padding:24px;">
+                <div class="lbl">Your selection</div>
+                <h3 class="h-card ff mt-2" style="font-size:19px;">@providerService.OfferingTitle</h3>
+                <div class="muted" style="font-size:13.5px;">@provider.BusinessName &middot; @providerService.ServiceCity</div>
+                <hr class="divider my-3">
+                <div class="sum-row"><span class="k">Service date</span><span class="v">@selectedDay.Value.ToString("d MMM yyyy")</span></div>
+                <div class="sum-row"><span class="k">Service time</span><span class="v">@selectedTime@(chosenSlot != null ? $" – {hm(chosenSlot.EndTime)}" : "")</span></div>
+                @if (duration != null)
+                {
+                    <div class="sum-row"><span class="k">Duration</span><span class="v">@duration hour@(duration == "1" ? "" : "s")</span></div>
+                }
+                <hr class="divider my-3">
+                <div class="d-flex justify-content-between align-items-baseline mb-4">
+                    <span class="muted" style="font-size:14.5px;">Price</span>
+                    <span class="text-end"><span class="price" style="font-size:28px;">SAR @providerService.Price.ToString("N0")</span>
+                        <span class="muted d-block" style="font-size:12.5px;">@WijhaHelpers.PriceUnit(providerService.PriceUnit)</span></span>
+                </div>
+                <button type="button" class="btn btn-w btn-block btn-lg-w" data-bs-toggle="modal" data-bs-target="#event-modal">Continue to booking</button>
+                <p class="muted text-center mt-3 mb-0" style="font-size:13px;">Next: choose whether this belongs to an event.</p>
+            </div>
+        }
+        else if (selectedDay.HasValue && !dayIsOpen)
+        {
+            <div class="alert-w a-err mb-3">
+                <i class="bi bi-x-circle-fill" style="font-size:18px;"></i>
+                <div><strong>@selectedDay.Value.ToString("d MMMM") is fully booked.</strong><br>Every slot @provider.BusinessName listed that day is already reserved.</div>
+            </div>
+            <div class="card-w" style="padding:24px;">
+                <div class="lbl mb-3">Nearest free dates</div>
+                @if (nearestFreeDates.Any())
+                {
+                    <div class="d-flex flex-column gap-2 mb-4">
+                        @foreach (var slot in nearestFreeDates)
+                        {
+                            int gap = (int)(slot.AvailableDate.ToDateTime(TimeOnly.MinValue) - selectedDay.Value.ToDateTime(TimeOnly.MinValue)).TotalDays;
+                            <a href="@Url.RouteUrl("customer.bookings.create", new { provider_service_id = providerService.ProviderServiceId, month = slot.AvailableDate.ToString("yyyy-MM"), date = slot.AvailableDate.ToString("yyyy-MM-dd") })"
+                               class="opt" style="padding:14px 16px;margin:0;text-decoration:none;">
+                                <span class="radio"></span>
+                                <div class="flex-grow-1">
+                                    <div style="font-weight:700;font-size:15px;color:var(--w-green-800);">@slot.AvailableDate.ToString("dddd, d MMMM")</div>
+                                    <div class="muted" style="font-size:13px;">
+                                        @hm(slot.StartTime)&ndash;@hm(slot.EndTime) &middot;
+                                        @Math.Abs(gap) day@(Math.Abs(gap) == 1 ? "" : "s") @(gap >= 0 ? "after" : "before") your date
+                                    </div>
+                                </div>
+                            </a>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <p class="muted mb-4" style="font-size:14px;">@provider.BusinessName has no other open dates right now.</p>
+                }
+                <button type="button" class="btn btn-w-ghost btn-block mb-2" disabled>Continue to booking</button>
+                <a href="@Url.RouteUrl("providers.index", new { service_id = providerService.ServiceId, event_date = selectedDate })" class="btn btn-w btn-block btn-lg-w">
+                    <i class="bi bi-search me-2"></i>Find another provider for @selectedDay.Value.ToString("d MMM")</a>
+                <p class="muted text-center mt-3 mb-0" style="font-size:13px;">Search keeps @selectedDay.Value.ToString("d MMM yyyy") as your date.</p>
+            </div>
+        }
+        else
+        {
+            <div class="card-w" style="padding:24px;">
+                <div class="d-flex gap-3 mb-3">
+                    <div style="width:70px;height:56px;border-radius:var(--r-sm);overflow:hidden;flex:none;">
+                        @if (providerService.PortfolioUrl != null || provider.LogoUrl != null)
+                        {
+                            <img src="@WijhaHelpers.ImageUrl(providerService.PortfolioUrl ?? provider.LogoUrl!)" alt="@providerService.OfferingTitle" style="width:100%;height:100%;object-fit:cover;display:block;">
+                        }
+                        else
+                        {
+                            @await Html.PartialAsync("~/Views/components/_decor-photo.cshtml", (object)new { seed = providerService.ProviderServiceId, height = "100%" })
+                        }
+                    </div>
+                    <div>
+                        <div style="font-weight:700;font-size:15px;line-height:1.3;">@providerService.OfferingTitle</div>
+                        <div class="muted" style="font-size:13px;">@provider.BusinessName</div>
+                    </div>
+                </div>
+                <hr class="divider my-3">
+                <div class="sum-row"><span class="k">Price</span><span class="v">SAR @providerService.Price.ToString("N0") @WijhaHelpers.PriceUnit(providerService.PriceUnit)</span></div>
+                <div class="sum-row"><span class="k">Service city</span><span class="v">@providerService.ServiceCity</span></div>
+                @if (duration != null)
+                {
+                    <div class="sum-row"><span class="k">Duration</span><span class="v">@duration hour@(duration == "1" ? "" : "s")</span></div>
+                }
+                <hr class="divider my-3">
+                <p class="muted mb-0" style="font-size:14px;">Pick a green day on the calendar to see its time slots and continue.</p>
+            </div>
+        }
+    </div>
+</div>
+</div>
+
+@if (selectedDay.HasValue && dayIsOpen && selectedTime != null)
+{
+    @await Html.PartialAsync("~/Views/customer/bookings/_event-modal.cshtml")
+}

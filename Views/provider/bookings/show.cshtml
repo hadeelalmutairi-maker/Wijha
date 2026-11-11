@@ -1,0 +1,375 @@
+@using Wijha.Models
+@using Wijha.Support.Http
+@using Wijha.Helpers
+@model Booking
+@{
+    Layout = "~/Views/layouts/_provider.cshtml";
+    ViewBag.Title = $"{Model.Reference} | Wijha";
+    var c = Model.Customer!;
+    var ps = Model.ProviderService!;
+    bool justAccepted = TempData["just_accepted"] != null;
+    var statusMap = new Dictionary<string, string> { ["Pending"] = "b-warn", ["Accepted"] = "b-ok", ["Rejected"] = "b-err", ["Completed"] = "b-grey", ["Cancelled"] = "b-grey" };
+    var statusIcon = new Dictionary<string, string> { ["Pending"] = "bi-hourglass-split", ["Accepted"] = "bi-check-circle-fill", ["Rejected"] = "bi-x-circle-fill", ["Completed"] = "bi-check-all", ["Cancelled"] = "bi-slash-circle" };
+    bool isRejected = Model.BookingStatus == "Rejected";
+    bool isCancelled = Model.BookingStatus == "Cancelled";
+    bool isPending = Model.BookingStatus == "Pending";
+    bool cancelledBeforeReply = isCancelled && !Model.ProviderResponseDate.HasValue;
+    string scheduleUrl = Url.RouteUrl("provider.availability.index", new { month = Model.ServiceDate.ToString("yyyy-MM"), date = Model.ServiceDate.ToString("yyyy-MM-dd") }) ?? "";
+    int pendingCount = ViewBag.PendingCount ?? 0;
+    string backLabel = "Back to requests" + (pendingCount > 0 ? $" ({pendingCount} waiting)" : "");
+    string backUrl = Url.RouteUrl("provider.bookings.index", pendingCount > 0 ? new { status = "Pending" } : null) ?? "";
+    string time = Model.ServiceTime.ToString("HH:mm");
+    var pay = Model.PaymentState();
+    var daySlots = (IEnumerable<Availability>)ViewBag.DaySlots ?? Enumerable.Empty<Availability>();
+    var sameDayBookings = (IEnumerable<Booking>)ViewBag.SameDayBookings ?? Enumerable.Empty<Booking>();
+    var slotHint = ViewBag.SlotHint as Dictionary<string, string>;
+    var freeDates = (IEnumerable<Availability>)ViewBag.FreeDates ?? Enumerable.Empty<Availability>();
+    var history = (Dictionary<string, int>)ViewBag.History ?? new();
+    var lastReview = ViewBag.LastReview as Review;
+    var stats = ViewBag.Stats as Dictionary<string, object>;
+    bool sentMessage = ViewBag.SentMessage == true;
+    var errors = new ErrorBag(ViewContext);
+}
+
+@if (justAccepted)
+{
+    <div class="hero-band">
+        <svg width="340" height="200" viewBox="0 0 340 200" style="position:absolute;left:-70px;top:-40px;opacity:.5;"><circle cx="170" cy="100" r="135" fill="#EFE6DA"/></svg>
+        <svg width="300" height="200" viewBox="0 0 300 200" style="position:absolute;right:-60px;bottom:-60px;opacity:.5;"><circle cx="150" cy="100" r="135" fill="#E8EDE9"/></svg>
+        <div class="hero-inner">
+            <svg width="96" height="96" viewBox="0 0 112 112" fill="none" style="margin:0 auto;display:block;">
+                <circle cx="56" cy="56" r="50" fill="#33463B"/><circle cx="56" cy="56" r="38" fill="#D8BD9E"/>
+                <path d="M41 57l11 11 21-23" stroke="#23342B" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <h1 class="h-pg mt-4" style="font-size:40px;">Booking accepted</h1>
+            <p class="lead-w mt-3" style="max-width:580px;margin:0 auto;">@c.FirstName @c.LastName has been notified and asked to pay. The date is now reserved on your schedule.</p>
+            <div class="d-flex gap-2 justify-content-center mt-4 flex-wrap">
+                <span class="badge-w b-ok" style="font-size:13px;padding:9px 16px;"><i class="bi bi-check-circle-fill"></i> @Model.Reference &middot; Accepted</span>
+                <span class="badge-w b-gold" style="font-size:13px;padding:9px 16px;"><i class="bi bi-calendar-check"></i> @Model.ServiceDate.ToString("dd MMM") reserved</span>
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    <div class="crumbs crumbs-c crumbs-wide"><a href="@Url.RouteUrl("provider.bookings.index")">Requests</a> <i class="bi bi-chevron-right" style="font-size:10px;"></i> <span class="cur">@Model.Reference</span></div>
+}
+
+<div class="page-wrap page-wrap-wide">
+    @await Html.PartialAsync("~/Views/partials/_flash.cshtml")
+    @if (isCancelled)
+    {
+        <div class="alert-w a-info mb-4">
+            <i class="bi bi-info-circle-fill" style="font-size:18px;"></i>
+            <div><strong>@c.FirstName @c.LastName cancelled this request@(cancelledBeforeReply ? " before you replied" : "").</strong>
+                No action is needed@(cancelledBeforeReply ? " and your acceptance rate is not affected" : "").</div>
+        </div>
+    }
+    @if (errors.HasAny(new[] { "rejection_reason", "message_text", "action" }))
+    {
+        <div class="alert-w a-err mb-4">
+            <i class="bi bi-exclamation-circle-fill" style="font-size:18px;"></i>
+            <div><strong>Your response wasn't saved.</strong> @(errors.First("rejection_reason") ?? errors.First("message_text") ?? errors.First("action"))</div>
+        </div>
+    }
+
+    @if (!justAccepted)
+    {
+        <div class="d-flex justify-content-between align-items-end flex-wrap gap-3 mb-4">
+            <div>
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <h1 class="h-pg mb-0">@ps.OfferingTitle</h1>
+                    <span class="badge-w @statusMap[Model.BookingStatus]"><i class="bi @statusIcon[Model.BookingStatus]"></i> @(Model.BookingStatus == "Cancelled" ? "Cancelled by customer" : Model.BookingStatus)</span>
+                </div>
+                <p class="muted mt-2 mb-0" style="font-size:15px;">Request @Model.Reference &middot;
+                    @if (isRejected)
+                    {
+                        <text>@c.FirstName @c.LastName &middot; rejected @Model.ProviderResponseDate?.ToString("d MMM yyyy, HH:mm")</text>
+                    }
+                    else if (isCancelled)
+                    {
+                        <text>cancelled @Model.CancellationDate?.ToString("d MMM yyyy, HH:mm")</text>
+                    }
+                    else
+                    {
+                        <text>received @Model.BookingDate.ToString("dd MMM yyyy, HH:mm")@(isPending ? $" · waiting {(DateTime.UtcNow - Model.BookingDate).Days} days" : "")</text>
+                    }
+                </p>
+            </div>
+            <div class="d-flex gap-2 flex-wrap">
+                @if (!isRejected && !isCancelled)
+                {
+                    <a href="@Url.RouteUrl("provider.messages.show", new { id = c.CustomerId })" class="btn btn-w-light"><i class="bi bi-chat-dots me-2"></i>Message @c.FirstName</a>
+                }
+                @if (isPending)
+                {
+                    <button type="button" class="btn btn-w-danger" data-bs-toggle="modal" data-bs-target="#reject-@Model.BookingId">Reject request</button>
+                    <button type="button" class="btn btn-w" data-bs-toggle="modal" data-bs-target="#accept-@Model.BookingId">Accept request</button>
+                }
+            </div>
+        </div>
+    }
+
+    <div class="row g-4">
+        <div class="col-lg-8">
+            <div class="card-w mb-3 @(isCancelled ? "card-dim" : "")" style="padding:28px;">
+                <h2 class="h-sec mb-4">@(justAccepted || isRejected ? "Booking record" : "Customer booking information")</h2>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="sum-row"><span class="k">Service date</span><span class="v">@Model.ServiceDate.ToString("dddd, dd MMM yyyy")</span></div>
+                        <div class="sum-row"><span class="k">Service time</span><span class="v">@time</span></div>
+                        @if (ps.DurationHours.HasValue)
+                        {
+                            <div class="sum-row"><span class="k">Duration</span><span class="v">@ps.DurationHours hours</span></div>
+                        }
+                        <div class="sum-row"><span class="k">Quantity</span><span class="v">@Model.Quantity</span></div>
+                        <div class="sum-row"><span class="k">Number of guests</span><span class="v">@(Model.GuestCount.HasValue ? Model.GuestCount.ToString() : "Not given")</span></div>
+                    </div>
+                    <div class="col-md-6">
+                        @if (Model.MyEvent != null)
+                        {
+                            <div class="sum-row"><span class="k">Event</span><span class="v">@Model.MyEvent.EventName</span></div>
+                            <div class="sum-row"><span class="k">Event type</span><span class="v">@Model.MyEvent.EventType</span></div>
+                        }
+                        <div class="sum-row"><span class="k">Agreed price</span><span class="v">SAR @Model.AgreedPrice.ToString("N2")</span></div>
+                        <div class="sum-row"><span class="k">Payment</span><span class="badge-w @pay["badge"]">@pay["label"]</span></div>
+                        @if (Model.ProviderResponseDate.HasValue)
+                        {
+                            <div class="sum-row"><span class="k">Responded</span><span class="v">@Model.ProviderResponseDate.Value.ToString("dd MMM yyyy, HH:mm")</span></div>
+                        }
+                        else if (Model.ModificationDeadline.HasValue)
+                        {
+                            <div class="sum-row"><span class="k">Customer can edit until</span><span class="v">@Model.ModificationDeadline.Value.ToString("dd MMM yyyy, HH:mm")</span></div>
+                        }
+                    </div>
+                </div>
+                <hr class="divider my-3">
+                <div class="lbl mb-2">Venue address</div>
+                <p class="mb-0" style="font-size:15px;color:var(--w-green-700);"><i class="bi bi-geo-alt me-2"></i>@Model.VenueAddress</p>
+                @if (isRejected)
+                {
+                    <hr class="divider my-3">
+                    <div class="lbl mb-2">Rejection reason stored on the booking</div>
+                    <div class="reason-box">@(Model.RejectionReason ?? "No reason recorded.")</div>
+                }
+                else if (isCancelled)
+                {
+                    <div class="lbl mt-3 mb-2">Cancellation reason given by the customer</div>
+                    <p class="mb-0" style="font-size:15px;color:var(--w-green-700);">@(Model.CancellationReason ?? "No reason given.")</p>
+                    <hr class="divider my-3">
+                    <div class="d-flex gap-2 align-items-center flex-wrap">
+                        <button type="button" class="btn btn-w-ghost" disabled>Accept request</button>
+                        <button type="button" class="btn btn-w-ghost" disabled>Reject request</button>
+                        <span class="muted" style="font-size:13.5px;">Actions are disabled on a cancelled request.</span>
+                    </div>
+                }
+            </div>
+
+            @if (isRejected)
+            {
+                <div class="card-w mb-3" style="padding:28px;">
+                    <h2 class="h-card ff mb-3" style="font-size:22px;">Request history</h2>
+                    <div class="tl">
+                        <div class="ti done"><div style="font-weight:700;font-size:15px;">Request received</div>
+                            <div class="muted" style="font-size:13.5px;">@Model.BookingDate.ToString("d MMM yyyy, HH:mm")</div></div>
+                        <div class="ti bad"><div style="font-weight:700;font-size:15px;">You rejected the request</div>
+                            <div class="muted" style="font-size:13.5px;">@Model.ProviderResponseDate?.ToString("d MMM yyyy, HH:mm") &middot; reason recorded</div></div>
+                        <div class="ti done"><div style="font-weight:700;font-size:15px;">Customer notified</div>
+                            <div class="muted" style="font-size:13.5px;">@Model.ProviderResponseDate?.ToString("d MMM yyyy, HH:mm")@(sentMessage ? " · your message was included" : "")</div></div>
+                    </div>
+                </div>
+            }
+
+            <div class="card-w mb-3" style="padding:28px;">
+                <h2 class="h-sec mb-3">Special requirements</h2>
+                @if (Model.SpecialRequirements != null)
+                {
+                    <div style="background:var(--w-cream-200);border-radius:var(--r-md);padding:20px 22px;">
+                        <p class="mb-0" style="font-size:15.5px;line-height:1.7;color:var(--w-green-700);">@Model.SpecialRequirements</p>
+                    </div>
+                }
+                else
+                {
+                    <p class="muted mb-0">The customer didn't add any special requirements.</p>
+                }
+            </div>
+
+            @if (Model.BookingStatus == "Accepted" || Model.BookingStatus == "Completed")
+            {
+                <div class="card-w mb-3" style="padding:28px;">
+                    <h2 class="h-sec mb-3">What happens next</h2>
+                    <div class="tl">
+                        <div class="ti done"><div style="font-weight:700;font-size:15px;">Request received</div>
+                            <div class="muted" style="font-size:13.5px;">@Model.BookingDate.ToString("dd MMM yyyy, HH:mm")</div></div>
+                        <div class="ti done"><div style="font-weight:700;font-size:15px;">You accepted</div>
+                            <div class="muted" style="font-size:13.5px;">@Model.ProviderResponseDate?.ToString("dd MMM yyyy, HH:mm") &middot; slot reserved</div></div>
+                        <div class="ti @(Model.Payment != null ? "done" : "now")"><div style="font-weight:700;font-size:15px;">Customer pays and an invoice is issued</div>
+                            <div class="muted" style="font-size:13.5px;">@(Model.Payment != null ? $"Paid {Model.Payment.PaymentDate?.ToString("dd MMM yyyy")} · {Model.Payment.InvoiceNumber}" : "Waiting for payment")</div></div>
+                        <div class="ti @(Model.BookingStatus == "Completed" ? "done" : (Model.Payment != null ? "now" : ""))"><div style="font-weight:700;font-size:15px;">Service day</div>
+                            <div class="muted" style="font-size:13.5px;">@Model.ServiceDate.ToString("dd MMM yyyy"), @time</div></div>
+                        <div class="ti @(Model.Review != null ? "done" : "")"><div style="font-weight:700;font-size:15px;">Customer rates you</div>
+                            <div class="muted" style="font-size:13.5px;">@(Model.Review != null ? $"{Model.Review.Rating} stars" : "Possible only after the booking is completed")</div></div>
+                    </div>
+                </div>
+            }
+
+            @if (!isRejected && !isCancelled)
+            {
+                <div class="card-w" style="padding:28px;">
+                    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                        <h2 class="h-sec mb-0">Your availability on @Model.ServiceDate.ToString("dd MMM")</h2>
+                        <a href="@scheduleUrl" style="font-size:14px;font-weight:700;color:var(--w-green-700);">Open schedule</a>
+                    </div>
+                    @if (slotHint != null)
+                    {
+                        string hintClass2 = slotHint["type"] == "info" ? "a-ok" : "a-err";
+                        string hintIcon2 = slotHint["type"] == "info" ? "bi-check-circle-fill" : "bi-exclamation-triangle-fill";
+                        <div class="alert-w @hintClass2 mb-3">
+                            <i class="bi @hintIcon2" style="font-size:18px;"></i>
+                            <div>@slotHint["text"]</div>
+                        </div>
+                    }
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="card-w h-100" style="padding:16px 18px;box-shadow:none;">
+                                <div class="lbl mb-1">@time</div>
+                                <div style="font-weight:700;font-size:15px;">This request</div>
+                                <div class="muted" style="font-size:13px;">@ps.OfferingTitle</div>
+                            </div>
+                        </div>
+                        @foreach (var other in sameDayBookings)
+                        {
+                            <div class="col-md-6">
+                                <div class="card-w h-100" style="padding:16px 18px;box-shadow:none;background:var(--w-cream-200);">
+                                    <div class="lbl mb-1">@other.ServiceTime.ToString("HH:mm")</div>
+                                    <div style="font-weight:700;font-size:15px;">Already booked</div>
+                                    <div class="muted" style="font-size:13px;">@other.ProviderService?.OfferingTitle &middot; @other.Reference</div>
+                                </div>
+                            </div>
+                        }
+                        @foreach (var slot in daySlots)
+                        {
+                            var slotBadge = slot.AvailabilityStatus == "Open" ? "b-ok" : (slot.AvailabilityStatus == "Booked" ? "b-grey" : "b-warn");
+                            <div class="col-md-6">
+                                <div class="card-w h-100" style="padding:16px 18px;box-shadow:none;">
+                                    <div class="lbl mb-1">@slot.StartTime.ToString("HH:mm") &ndash; @slot.EndTime.ToString("HH:mm")</div>
+                                    <div style="font-weight:700;font-size:15px;">Schedule slot</div>
+                                    <span class="badge-w @slotBadge mt-1">@slot.AvailabilityStatus</span>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+
+        <div class="col-lg-4">
+            @if (isRejected)
+            {
+                <div class="card-w" style="padding:26px;">
+                    <div class="lbl mb-3">Keep the customer</div>
+                    @if (freeDates.Any())
+                    {
+                        <p class="muted mb-3" style="font-size:14.5px;line-height:1.6;">These dates are open on your schedule. Suggest one to @c.FirstName so they can send a new request.</p>
+                        <div class="d-flex gap-2 flex-wrap mb-3">
+                            @foreach (var slot in freeDates)
+                            {
+                                <a href="@Url.RouteUrl("provider.availability.index", new { month = slot.AvailableDate.ToString("yyyy-MM"), date = slot.AvailableDate.ToString("yyyy-MM-dd") })" class="chip btn-sm-w text-decoration-none">@slot.AvailableDate.ToString("j MMM") &middot; free</a>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="muted mb-3" style="font-size:14.5px;line-height:1.6;">You have no open dates coming up. Open a few so @c.FirstName can try again.</p>
+                    }
+                    <a href="@Url.RouteUrl("provider.messages.show", new { id = c.CustomerId })" class="btn btn-w-light btn-block mb-2"><i class="bi bi-chat-dots me-2"></i>Message @c.FirstName</a>
+                    <a href="@backUrl" class="btn btn-w btn-block">@backLabel</a>
+                </div>
+                @if (stats != null)
+                {
+                    <div class="card-w mt-3" style="padding:26px;">
+                        <div class="lbl mb-3">Effect on your stats</div>
+                        <div class="sum-row"><span class="k">Acceptance rate (30 days)</span><span class="v">@(stats["acceptance_rate"] != null ? stats["acceptance_rate"] + "%" : "N/A")</span></div>
+                        <div class="sum-row"><span class="k">Rejected this month</span><span class="v">@stats["rejected_month"]</span></div>
+                    </div>
+                }
+            }
+            else if (isCancelled)
+            {
+                <div class="card-w" style="padding:26px;">
+                    <div class="lbl mb-3">Request history</div>
+                    bool openThatDay = daySlots.Any(s => s.AvailabilityStatus == "Open");
+                    <div class="tl">
+                        <div class="ti done"><div style="font-weight:700;font-size:15px;">Request received</div>
+                            <div class="muted" style="font-size:13.5px;">@Model.BookingDate.ToString("d MMM yyyy, HH:mm")</div></div>
+                        <div class="ti bad"><div style="font-weight:700;font-size:15px;">Cancelled by @c.FirstName @c.LastName</div>
+                            <div class="muted" style="font-size:13.5px;">@Model.CancellationDate?.ToString("d MMM yyyy, HH:mm")</div></div>
+                        <div class="ti @(openThatDay ? "done" : "")"><div style="font-weight:700;font-size:15px;">@(openThatDay ? "Date still open" : "No open slot that day")</div>
+                            <div class="muted" style="font-size:13.5px;">@Model.ServiceDate.ToString("d MMM") @(openThatDay ? "is open on your schedule" : "has no open slot on your schedule")</div></div>
+                    </div>
+                    <hr class="divider my-3">
+                    <a href="@backUrl" class="btn btn-w btn-block">@backLabel</a>
+                </div>
+            }
+            else
+            {
+                <div class="card-w" style="padding:26px;">
+                    <div class="lbl mb-3">Customer</div>
+                    <div class="d-flex gap-3 align-items-center mb-3">
+                        @await Html.PartialAsync("~/Views/components/_avatar.cshtml", (object)new { url = WijhaHelpers.ImageUrl(c.ProfileImageUrl), initials = $"{c.FirstName[0]}{c.LastName[0]}".ToUpper(), size = 50 })
+                        <div><div style="font-weight:700;font-size:16px;">@c.FirstName @c.LastName</div>
+                            <div class="muted" style="font-size:13px;">Customer since @c.RegistrationDate.ToString("MMM yyyy")</div></div>
+                    </div>
+                    <hr class="divider my-3">
+                    <div class="sum-row"><span class="k">Phone</span><span class="v">@c.Phone</span></div>
+                    <div class="sum-row"><span class="k">City</span><span class="v">@c.City</span></div>
+                    <div class="sum-row"><span class="k">Bookings with you</span><span class="v">@(history.ContainsKey("total") ? history["total"].ToString() : "0")</span></div>
+                    <div class="sum-row"><span class="k">Completed</span><span class="v">@(history.ContainsKey("completed") ? history["completed"].ToString() : "0")</span></div>
+                    <div class="sum-row"><span class="k">Cancelled</span><span class="v">@(history.ContainsKey("cancelled") ? history["cancelled"].ToString() : "0")</span></div>
+                    @if (lastReview != null)
+                    {
+                        <hr class="divider my-3">
+                        <div class="lbl mb-2">Their review of your last job</div>
+                        <div class="d-flex gap-1 mb-2" style="color:var(--w-sand-400);">
+                            @for (int i = 0; i < 5; i++) { <i class="bi bi-star@(i < lastReview.Rating ? "-fill" : "")"></i> }
+                        </div>
+                        @if (lastReview.ReviewText != null)
+                        {
+                            <p class="mb-0" style="font-size:14px;line-height:1.6;color:var(--w-green-600);">"@(lastReview.ReviewText.Length > 140 ? lastReview.ReviewText.Substring(0, 140) + "…" : lastReview.ReviewText)"</p>
+                        }
+                    }
+                    <a href="@Url.RouteUrl("provider.messages.show", new { id = c.CustomerId })" class="btn btn-w-light btn-block mt-4"><i class="bi bi-chat-dots me-2"></i>@(isPending ? "Message before deciding" : $"Message {c.FirstName}")</a>
+                </div>
+
+                @if (isPending)
+                {
+                    <div class="card-w mt-3" style="padding:26px;">
+                        <div class="lbl mb-3">Decide</div>
+                        <button type="button" class="btn btn-w btn-block btn-lg-w mb-2" data-bs-toggle="modal" data-bs-target="#accept-@Model.BookingId">Accept request</button>
+                        <button type="button" class="btn btn-w-danger btn-block" data-bs-toggle="modal" data-bs-target="#reject-@Model.BookingId">Reject request</button>
+                        <p class="muted text-center mt-3 mb-0" style="font-size:13px;">The customer is notified either way and the booking status changes immediately.</p>
+                    </div>
+                }
+                else
+                {
+                    <div class="card-w mt-3" style="padding:26px;">
+                        <div class="lbl mb-3">Quick actions</div>
+                        <a href="@scheduleUrl" class="btn btn-w-light btn-block mb-2"><i class="bi bi-calendar3 me-2"></i>Open my schedule</a>
+                        <a href="@backUrl" class="btn btn-w btn-block">@backLabel</a>
+                    </div>
+                }
+            }
+        </div>
+    </div>
+</div>
+
+@if (isPending)
+{
+    @await Html.PartialAsync("~/Views/provider/bookings/_respond-modals.cshtml", Model)
+    @await Html.PartialAsync("~/Views/provider/bookings/_respond-script.cshtml")
+    @if (errors.Has("rejection_reason"))
+    {
+        @section scripts {
+        <script>bootstrap.Modal.getOrCreateInstance(document.getElementById('reject-@Model.BookingId')).show();</script>
+        }
+    }
+}

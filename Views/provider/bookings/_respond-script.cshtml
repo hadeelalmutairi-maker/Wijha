@@ -1,0 +1,21 @@
+@section scripts {
+<script>
+document.querySelectorAll('.reject-form').forEach(function (form) {
+    form.querySelectorAll('.reason-opt').forEach(function (opt) {
+        opt.addEventListener('click', function () {
+            form.querySelectorAll('.reason-opt').forEach(function (o) {
+                o.classList.remove('on');
+                o.querySelector('.radio').classList.remove('on');
+            });
+            opt.classList.add('on');
+            opt.querySelector('.radio').classList.add('on');
+            opt.querySelector('input').checked = true;
+            var isOther = opt.querySelector('input').value === '__other';
+            var other = form.querySelector('.other-reason');
+            other.classList.toggle('d-none', !isOther);
+            other.querySelector('input').required = isOther;
+        });
+    });
+});
+</script>
+}

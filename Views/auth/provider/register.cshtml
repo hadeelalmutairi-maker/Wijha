@@ -1,0 +1,114 @@
+@{
+    Layout = "~/Views/layouts/_auth.cshtml";
+    ViewBag.Title = "Register your business | Wijha";
+}
+@using Wijha.Support.Http
+@{
+    var errors = new ErrorBag(ViewContext);
+    int errCount = errors.Count();
+}
+
+@section quote {
+    <div class="auth-quote">Reach customers<br>who are ready<br>to book.</div>
+    <p style="color:#B9C7BD;font-size:15.5px;line-height:1.7;margin-top:18px;max-width:330px;">Your store page, your categories, your availability, and every request in one organised list instead of scattered DMs.</p>
+}
+
+@await Html.PartialAsync("~/Views/auth/_join-steps.cshtml", (object)new { detailsLabel = "Business details" })
+<h1 class="h-pg mb-2">Your business details</h1>
+<p class="muted mb-4" style="font-size:15.5px;">Creating a <strong style="color:var(--w-green-700);">service provider</strong> account.</p>
+
+<div class="alert-w a-info mb-4" style="font-size:14px;">
+    <i class="bi bi-info-circle-fill" style="font-size:17px;"></i>
+    <div>An administrator reviews every provider before the store goes live. This usually takes 1–2 working days.</div>
+</div>
+
+@if (errCount > 0)
+{
+    <div class="alert-w a-err mb-4">
+        <i class="bi bi-exclamation-circle-fill" style="font-size:18px;"></i>
+        <div><strong>@(errCount == 1 ? "One field needs" : $"{errCount} fields need") attention.</strong><br>Fix the highlighted @(errCount == 1 ? "field" : "fields") and try again.</div>
+    </div>
+}
+
+<form method="post" action="@Url.RouteUrl("provider.register")" enctype="multipart/form-data">
+    @Html.AntiForgeryToken()
+    <div class="field">
+        <label for="business_name">Business name</label>
+        <div class="inp-icon"><i class="bi bi-shop"></i>
+            <input type="text" name="business_name" id="business_name" class="inp @(errors.Has("business_name") ? "inp-err" : "")"
+                   value="@Flash.Old(ViewContext.HttpContext, "business_name")" required maxlength="150" placeholder="Lamasat Studio"></div>
+        @if (errors.Has("business_name")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("business_name")</div> }
+    </div>
+
+    <div class="field">
+        <label for="owner_name">Owner name</label>
+        <input type="text" name="owner_name" id="owner_name" class="inp @(errors.Has("owner_name") ? "inp-err" : "")"
+               value="@Flash.Old(ViewContext.HttpContext, "owner_name")" required maxlength="100" placeholder="Ghaday Albahloul">
+        @if (errors.Has("owner_name")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("owner_name")</div> }
+    </div>
+
+    <div class="row g-3">
+        <div class="col-sm-6"><div class="field">
+            <label for="email">Email address</label>
+            <div class="inp-icon"><i class="bi bi-envelope"></i>
+                <input type="email" name="email" id="email" class="inp @(errors.Has("email") ? "inp-err" : "")"
+                       value="@Flash.Old(ViewContext.HttpContext, "email")" required maxlength="150" placeholder="info@business.sa"></div>
+            @if (errors.Has("email")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("email")</div> }
+        </div></div>
+        <div class="col-sm-6"><div class="field">
+            <label for="phone">Phone number</label>
+            <div class="inp-icon"><i class="bi bi-telephone"></i>
+                <input type="tel" name="phone" id="phone" class="inp @(errors.Has("phone") ? "inp-err" : "")"
+                       value="@Flash.Old(ViewContext.HttpContext, "phone")" required pattern="^(05\d{8}|\+9665\d{8})$" inputmode="tel"
+                       placeholder="05XXXXXXXX"></div>
+            @if (errors.Has("phone")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("phone")</div> }
+        </div></div>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-sm-6">@await Html.PartialAsync("~/Views/auth/_city-select.cshtml")</div>
+        <div class="col-sm-6"><div class="field">
+            <label for="business_address">Business address</label>
+            <input type="text" name="business_address" id="business_address" class="inp @(errors.Has("business_address") ? "inp-err" : "")"
+                   value="@Flash.Old(ViewContext.HttpContext, "business_address")" required maxlength="255" placeholder="Street, district">
+            @if (errors.Has("business_address")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("business_address")</div> }
+        </div></div>
+    </div>
+
+    <div class="field">
+        <label for="commercial_register_no">Commercial register number</label>
+        <div class="inp-icon"><i class="bi bi-file-earmark-text"></i>
+            <input type="text" name="commercial_register_no" id="commercial_register_no" class="inp @(errors.Has("commercial_register_no") ? "inp-err" : "")"
+                   value="@Flash.Old(ViewContext.HttpContext, "commercial_register_no")" required pattern="^\d{10}$" maxlength="10" placeholder="2055134887"></div>
+        <div class="help">We verify this with the Ministry of Commerce before approval.</div>
+        @if (errors.Has("commercial_register_no")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("commercial_register_no")</div> }
+    </div>
+
+    <div class="field">
+        <label for="business_description">Business description</label>
+        <textarea name="business_description" id="business_description" class="inp inp-area @(errors.Has("business_description") ? "inp-err" : "")"
+                  rows="2" maxlength="1000" style="min-height:60px;">@Flash.Old(ViewContext.HttpContext, "business_description")</textarea>
+        @if (errors.Has("business_description")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("business_description")</div> }
+    </div>
+
+    <div class="field">
+        <label for="logo">Business logo (optional)</label>
+        <input type="file" name="logo" id="logo" class="inp @(errors.Has("logo") ? "inp-err" : "")" accept="image/png,image/jpeg">
+        @if (errors.Has("logo")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("logo")</div> }
+    </div>
+
+    <div class="row g-3">
+        <div class="col-sm-6">
+            @await Html.PartialAsync("~/Views/auth/_password-field.cshtml", (object)new { id="password", name="password", label="Password", placeholder="At least 8 characters", autocomplete="new-password", minlength=8, pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z\\d]).{8,}$", title="At least 8 characters, with upper and lower case, a number and a symbol." })
+        </div>
+        <div class="col-sm-6">
+            @await Html.PartialAsync("~/Views/auth/_password-field.cshtml", (object)new { id="password_confirmation", name="password_confirmation", label="Confirm password", placeholder="Repeat password", autocomplete="new-password", minlength=8 })
+        </div>
+    </div>
+    <div class="help" style="margin-top:-8px;margin-bottom:16px;">Use 8 characters or more with an uppercase letter, a number and a symbol.</div>
+
+    @await Html.PartialAsync("~/Views/auth/_terms.cshtml")
+
+    <button type="submit" class="btn btn-w btn-lg-w btn-block">Submit for approval</button>
+    <p class="text-center muted mt-4 mb-0" style="font-size:15px;">Already registered? <a href="@Url.RouteUrl("login")" style="color:var(--w-green-700);font-weight:700;">Log in</a></p>
+</form>

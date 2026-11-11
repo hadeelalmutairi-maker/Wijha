@@ -1,0 +1,12 @@
+@model dynamic
+@{
+    int current = Model?.current ?? 1;
+    string guard = Model?.guard ?? "customer";
+    var steps = new List<Dictionary<string,string>>
+    {
+        new() { ["label"] = "Your email", ["href"] = Url.RouteUrl("password.forgot", new { guard }) ?? "" },
+        new() { ["label"] = "Enter code" },
+        new() { ["label"] = "New password" },
+    };
+}
+@await Html.PartialAsync("~/Views/auth/_steps.cshtml", (object)new { steps, current })

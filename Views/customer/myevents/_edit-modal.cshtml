@@ -1,0 +1,44 @@
+@using Wijha.Models
+@model CustomerEvent
+@{
+    var eventTypes = new[] { "Wedding","Engagement","Graduation","Birthday","Baby Shower","Corporate","National Day","Other" };
+}
+<div class="modal fade" id="edit-event-@Model.MyEventId" tabindex="-1">
+    <div class="modal-dialog"><div class="modal-content" style="border-radius:var(--r-xl);border:0;">
+        <form method="post" action="@Url.RouteUrl("customer.myevents.update", new { id = Model.MyEventId })" style="display:flex;flex-direction:column;max-height:85vh;">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="_method" value="PUT">
+            <div class="modal-body" style="padding:28px;overflow-y:auto;">
+                <h2 class="h-sec mb-3">Edit @Model.EventName</h2>
+                <div class="field">
+                    <label for="edit_event_name_@Model.MyEventId">Event name</label>
+                    <input type="text" name="event_name" id="edit_event_name_@Model.MyEventId" class="inp" maxlength="150" required value="@Model.EventName">
+                </div>
+                <div class="row g-3">
+                    <div class="col-6"><div class="field">
+                        <label for="edit_event_type_@Model.MyEventId">Event type</label>
+                        <select name="event_type" id="edit_event_type_@Model.MyEventId" class="inp" required>
+                            @foreach (var t in eventTypes)
+                            {
+                                <option value="@t" @(Model.EventType == t ? "selected" : "")>@t</option>
+                            }
+                        </select>
+                    </div></div>
+                    <div class="col-6"><div class="field">
+                        <label for="edit_event_date_@Model.MyEventId">Event date</label>
+                        <input type="date" name="event_date" id="edit_event_date_@Model.MyEventId" class="inp" required
+                               value="@Model.EventDate.ToString("yyyy-MM-dd")" min="@DateTime.Today.AddDays(1).ToString("yyyy-MM-dd")">
+                    </div></div>
+                </div>
+                <div class="field" style="margin-bottom:0;">
+                    <label for="edit_total_budget_@Model.MyEventId">Total budget (SAR)</label>
+                    <input type="number" name="total_budget" id="edit_total_budget_@Model.MyEventId" class="inp" min="0" step="0.01" value="@Model.TotalBudget">
+                </div>
+            </div>
+            <div class="modal-foot d-flex gap-2">
+                <button type="button" class="btn btn-w-ghost flex-grow-1" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-w flex-grow-1">Save changes</button>
+            </div>
+        </form>
+    </div></div>
+</div>

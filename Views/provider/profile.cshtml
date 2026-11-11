@@ -1,0 +1,88 @@
+@using Wijha.Models
+@using Wijha.Support.Http
+@model ServiceProvider
+@{
+    Layout = "~/Views/layouts/_provider.cshtml";
+    ViewBag.Title = "Business profile | Wijha";
+    var errors = new ErrorBag(ViewContext);
+}
+<div class="page-pad" style="max-width:680px;margin:0 auto;">
+    @await Html.PartialAsync("~/Views/partials/_flash.cshtml")
+
+    <div class="card-w text-center mb-4" style="padding:32px 30px;">
+        <div class="d-flex justify-content-center">
+            @await Html.PartialAsync("~/Views/components/_avatar.cshtml", (object)new { url = Wijha.Helpers.WijhaHelpers.ImageUrl(Model.LogoUrl), initials = Model.BusinessName.Substring(0, Math.Min(2, Model.BusinessName.Length)).ToUpper(), size = 84 })
+        </div>
+        <h1 class="h-pg mt-3 mb-1">@Model.BusinessName</h1>
+        <p class="muted mb-0" style="font-size:14.5px;">@Model.Email &middot; @Model.City</p>
+    </div>
+
+    <h2 class="h-sec mb-3">Business settings</h2>
+    <form method="post" action="@Url.RouteUrl("provider.profile.update")" enctype="multipart/form-data" class="card-w" style="padding:30px;">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="_method" value="PUT">
+        <div class="d-flex align-items-center gap-3 mb-4">
+            @await Html.PartialAsync("~/Views/components/_avatar.cshtml", (object)new { url = Wijha.Helpers.WijhaHelpers.ImageUrl(Model.LogoUrl), initials = Model.BusinessName.Substring(0, Math.Min(2, Model.BusinessName.Length)).ToUpper(), size = 72 })
+            <div class="muted" style="font-size:13.5px;">Current logo</div>
+        </div>
+
+        <div class="field">
+            <label for="business_name">Business name</label>
+            <input type="text" name="business_name" id="business_name" class="inp @(errors.Has("business_name") ? "inp-err" : "")"
+                   value="@(Flash.Old(ViewContext.HttpContext, "business_name") ?? Model.BusinessName)" required maxlength="150">
+            @if (errors.Has("business_name")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("business_name")</div> }
+        </div>
+
+        <div class="field">
+            <label for="owner_name">Owner name</label>
+            <input type="text" name="owner_name" id="owner_name" class="inp @(errors.Has("owner_name") ? "inp-err" : "")"
+                   value="@(Flash.Old(ViewContext.HttpContext, "owner_name") ?? Model.OwnerName)" required maxlength="100">
+            @if (errors.Has("owner_name")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("owner_name")</div> }
+        </div>
+
+        <div class="row g-3">
+            <div class="col-6"><div class="field">
+                <label for="email">Email address</label>
+                <input type="email" name="email" id="email" class="inp @(errors.Has("email") ? "inp-err" : "")"
+                       value="@(Flash.Old(ViewContext.HttpContext, "email") ?? Model.Email)" required maxlength="150">
+                @if (errors.Has("email")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("email")</div> }
+            </div></div>
+            <div class="col-6"><div class="field">
+                <label for="phone">Phone number</label>
+                <input type="tel" name="phone" id="phone" class="inp @(errors.Has("phone") ? "inp-err" : "")"
+                       value="@(Flash.Old(ViewContext.HttpContext, "phone") ?? Model.Phone)" required pattern="^(05\d{8}|\+9665\d{8})$">
+                @if (errors.Has("phone")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("phone")</div> }
+            </div></div>
+        </div>
+
+        <div class="row g-3">
+            <div class="col-6"><div class="field">
+                <label for="city">City</label>
+                <input type="text" name="city" id="city" class="inp @(errors.Has("city") ? "inp-err" : "")"
+                       value="@(Flash.Old(ViewContext.HttpContext, "city") ?? Model.City)" required maxlength="60">
+                @if (errors.Has("city")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("city")</div> }
+            </div></div>
+            <div class="col-6"><div class="field">
+                <label for="business_address">Business address</label>
+                <input type="text" name="business_address" id="business_address" class="inp @(errors.Has("business_address") ? "inp-err" : "")"
+                       value="@(Flash.Old(ViewContext.HttpContext, "business_address") ?? Model.BusinessAddress)" required maxlength="255">
+                @if (errors.Has("business_address")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("business_address")</div> }
+            </div></div>
+        </div>
+
+        <div class="field">
+            <label for="business_description">Business description</label>
+            <textarea name="business_description" id="business_description" class="inp inp-area @(errors.Has("business_description") ? "inp-err" : "")"
+                      rows="3" maxlength="1000">@(Flash.Old(ViewContext.HttpContext, "business_description") ?? Model.BusinessDescription)</textarea>
+            @if (errors.Has("business_description")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("business_description")</div> }
+        </div>
+
+        <div class="field">
+            <label for="logo">Business logo</label>
+            <input type="file" name="logo" id="logo" class="inp @(errors.Has("logo") ? "inp-err" : "")" accept="image/png,image/jpeg">
+            @if (errors.Has("logo")) { <div class="help-err"><i class="bi bi-exclamation-circle"></i> @errors.First("logo")</div> }
+        </div>
+
+        <button type="submit" class="btn btn-w btn-lg-w mt-2">Save changes</button>
+    </form>
+</div>
